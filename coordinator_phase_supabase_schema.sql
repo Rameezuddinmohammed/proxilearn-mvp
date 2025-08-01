@@ -8,8 +8,48 @@
 -- - Student Phase schema must be applied first (11 tables)
 -- - Teacher Phase schema must be applied second (9 tables)
 -- 
--- This adds 8 new tables for comprehensive coordinator functionality
+-- This adds missing columns to user_profiles and 8 new tables for comprehensive coordinator functionality
 -- ================================================================================================
+
+-- ------------------------------------------------------------------------------------------------
+-- 0. ADD MISSING COLUMNS TO USER_PROFILES TABLE (Required for coordinator functionality)
+-- ------------------------------------------------------------------------------------------------
+
+-- Add grade_level and section columns to user_profiles if they don't exist
+DO $$
+BEGIN
+    -- Add grade_level column
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'user_profiles' AND column_name = 'grade_level'
+    ) THEN
+        ALTER TABLE public.user_profiles ADD COLUMN grade_level VARCHAR(20);
+        RAISE NOTICE 'Added grade_level column to user_profiles';
+    END IF;
+    
+    -- Add section column
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'user_profiles' AND column_name = 'section'
+    ) THEN
+        ALTER TABLE public.user_profiles ADD COLUMN section VARCHAR(20);
+        RAISE NOTICE 'Added section column to user_profiles';
+    END IF;
+    
+    -- Add is_active column if it doesn't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'user_profiles' AND column_name = 'is_active'
+    ) THEN
+        ALTER TABLE public.user_profiles ADD COLUMN is_active BOOLEAN DEFAULT TRUE;
+        RAISE NOTICE 'Added is_active column to user_profiles';
+    END IF;
+END $$;
+
+-- Create indexes for the new columns
+CREATE INDEX IF NOT EXISTS idx_user_profiles_grade_level ON public.user_profiles(grade_level);
+CREATE INDEX IF NOT EXISTS idx_user_profiles_section ON public.user_profiles(section);
+CREATE INDEX IF NOT EXISTS idx_user_profiles_active ON public.user_profiles(is_active);
 
 -- ------------------------------------------------------------------------------------------------
 -- 1. COORDINATOR ASSIGNMENTS - Link coordinators to classes/sections they oversee
