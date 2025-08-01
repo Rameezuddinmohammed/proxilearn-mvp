@@ -116,6 +116,8 @@ export default function App() {
   useEffect(() => {
     if (user && profile && profile.role === 'student') {
       loadStudentData()
+    } else if (user && profile && profile.role === 'teacher') {
+      loadTeacherData()
     }
   }, [user, profile])
 
