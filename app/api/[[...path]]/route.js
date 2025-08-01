@@ -43,6 +43,12 @@ function createSupabaseServer() {
   )
 }
 
+// OpenAI client for Kimi K2
+const openai = new OpenAI({
+  baseURL: process.env.OPENROUTER_BASE_URL,
+  apiKey: process.env.OPENROUTER_API_KEY,
+})
+
 // Helper function to handle CORS
 function handleCORS(response) {
   response.headers.set('Access-Control-Allow-Origin', '*')
