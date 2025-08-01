@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Comprehensive Backend Testing for Proxilearn Teacher Phase APIs
-Tests all 8 major Teacher Phase features with authentication and error handling
+Comprehensive Backend Testing for Proxilearn Teacher Phase and Coordinator Phase APIs
+Tests all Teacher Phase features and 13 Coordinator Phase APIs with authentication and error handling
 """
 
 import requests
