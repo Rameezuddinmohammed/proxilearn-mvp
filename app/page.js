@@ -415,6 +415,138 @@ export default function App() {
     }
   }
 
+  // Coordinator Data Loading Functions
+  const loadCoordinatorData = async () => {
+    setLoadingData(true)
+    try {
+      await Promise.all([
+        loadCoordinatorDashboard(),
+        loadSupportCategories(),
+        loadCoordinatorAnalytics(),
+        loadCoordinatorCommunications(),
+        loadInterventions(),
+        loadCoordinatorAlerts()
+      ])
+    } catch (error) {
+      console.error('Error loading coordinator data:', error)
+      toast.error('Failed to load dashboard data')
+    } finally {
+      setLoadingData(false)
+    }
+  }
+
+  const loadCoordinatorDashboard = async () => {
+    try {
+      const response = await fetch('/api/coordinator/dashboard', {
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      })
+      const data = await response.json()
+      if (response.ok) {
+        setCoordinatorDashboard(data)
+      }
+    } catch (error) {
+      console.error('Error loading coordinator dashboard:', error)
+    }
+  }
+
+  const loadSupportCategories = async () => {
+    try {
+      const response = await fetch('/api/coordinator/support-categories', {
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      })
+      const data = await response.json()
+      if (response.ok) {
+        setSupportCategories(data.support_categories || [])
+      }
+    } catch (error) {
+      console.error('Error loading support categories:', error)
+    }
+  }
+
+  const loadCoordinatorAnalytics = async () => {
+    try {
+      const response = await fetch('/api/coordinator/analytics', {
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      })
+      const data = await response.json()
+      if (response.ok) {
+        setCoordinatorAnalytics(data)
+      }
+    } catch (error) {
+      console.error('Error loading coordinator analytics:', error)
+    }
+  }
+
+  const loadCoordinatorCommunications = async () => {
+    try {
+      const response = await fetch('/api/coordinator/communications', {
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      })
+      const data = await response.json()
+      if (response.ok) {
+        setCoordinatorCommunications(data.communications || [])
+      }
+    } catch (error) {
+      console.error('Error loading coordinator communications:', error)
+    }
+  }
+
+  const loadInterventions = async () => {
+    try {
+      const response = await fetch('/api/coordinator/interventions', {
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      })
+      const data = await response.json()
+      if (response.ok) {
+        setInterventions(data.interventions || [])
+      }
+    } catch (error) {
+      console.error('Error loading interventions:', error)
+    }
+  }
+
+  const loadCoordinatorAlerts = async () => {
+    try {
+      const response = await fetch('/api/coordinator/alerts', {
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      })
+      const data = await response.json()
+      if (response.ok) {
+        setCoordinatorAlerts(data.alerts || [])
+      }
+    } catch (error) {
+      console.error('Error loading coordinator alerts:', error)
+    }
+  }
+
+  const loadStudentProfile = async (studentId) => {
+    try {
+      const response = await fetch(`/api/coordinator/students/${studentId}/profile`, {
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      })
+      const data = await response.json()
+      if (response.ok) {
+        setStudentProfile(data)
+      }
+    } catch (error) {
+      console.error('Error loading student profile:', error)
+    }
+  }
+
   const startQuiz = async (assignment) => {
     try {
       const response = await fetch(`/api/assignments/${assignment.id}/start`, {
