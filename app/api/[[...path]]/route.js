@@ -3368,8 +3368,6 @@ async function handleRoute(request, { params }) {
       }
     }
 
-    }
-
     // Route not found
     return handleCORS(NextResponse.json(
       { error: `Route ${route} not found` }, 
