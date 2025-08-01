@@ -598,6 +598,12 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Trigger to update student counts when user profiles change
+CREATE OR REPLACE TRIGGER update_coordinator_counts_on_profile_change
+    AFTER INSERT OR UPDATE OR DELETE ON public.user_profiles
+    FOR EACH ROW
+    EXECUTE FUNCTION update_coordinator_assignment_student_count();
+
 -- Function to generate coordinator alerts based on patterns
 CREATE OR REPLACE FUNCTION generate_coordinator_alerts()
 RETURNS VOID AS $$
