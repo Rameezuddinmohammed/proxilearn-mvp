@@ -11,8 +11,8 @@ import sys
 from datetime import datetime
 import uuid
 
-# Configuration - Using external URL for testing
-BASE_URL = "https://768199b1-f9d8-4a15-aa1a-c44ed0b0d4a7.preview.emergentagent.com"
+# Configuration - Using local URL since external routing has issues
+BASE_URL = "http://localhost:3000"
 API_BASE_URL = f"{BASE_URL}/api"
 TIMEOUT = 30
 
