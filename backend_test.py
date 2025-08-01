@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend Testing Suite for Proxilearn Authentication System
-Tests backend API endpoints, MongoDB connectivity, and environment configuration
+Comprehensive Backend Testing for Proxilearn Student Phase APIs
+Tests all 14 newly implemented Student Phase API endpoints
 """
 
 import requests
@@ -11,9 +11,10 @@ import sys
 from datetime import datetime
 import uuid
 
-# Configuration - Using local URL since external routing has issues
-BASE_URL = "http://localhost:3000"
+# Configuration - Using external URL for testing
+BASE_URL = "https://768199b1-f9d8-4a15-aa1a-c44ed0b0d4a7.preview.emergentagent.com"
 API_BASE_URL = f"{BASE_URL}/api"
+TIMEOUT = 30
 
 class ProxilearnBackendTester:
     def __init__(self):
