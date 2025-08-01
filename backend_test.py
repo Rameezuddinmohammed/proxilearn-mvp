@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime, timedelta
 
 # Configuration
-BASE_URL = "http://localhost:3000"
+BASE_URL = "https://0bb49dbb-f917-4419-ab8c-2034eb5d91d1.preview.emergentagent.com"
 API_BASE = f"{BASE_URL}/api"
 
 class CoordinatorPhaseAPITester:
