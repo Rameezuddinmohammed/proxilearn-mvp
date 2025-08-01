@@ -223,6 +223,53 @@ async function handleRoute(request, { params }) {
       }
     }
 
+    // Initialize Teacher Phase Schema - POST /api/init-teacher-phase
+    if (route === '/init-teacher-phase' && method === 'POST') {
+      try {
+        // Read and execute the teacher phase schema SQL
+        const fs = require('fs')
+        const path = require('path')
+        const schemaPath = path.join(process.cwd(), 'teacher_phase_schema.sql')
+        
+        if (!fs.existsSync(schemaPath)) {
+          return handleCORS(NextResponse.json({
+            error: "Teacher phase schema file not found"
+          }, { status: 404 }))
+        }
+
+        const schemaSQL = fs.readFileSync(schemaPath, 'utf8')
+        
+        // Execute the schema using Supabase client
+        const { data, error } = await supabase.rpc('exec_sql', {
+          sql: schemaSQL
+        })
+
+        if (error) {
+          console.error('Schema execution error:', error)
+          return handleCORS(NextResponse.json({
+            error: "Failed to initialize teacher phase schema",
+            details: error.message,
+            hint: "You may need to apply the schema manually in Supabase SQL Editor"
+          }, { status: 500 }))
+        }
+
+        return handleCORS(NextResponse.json({
+          message: "Teacher Phase schema initialized successfully",
+          result: data
+        }))
+
+      } catch (error) {
+        console.error('Teacher phase initialization error:', error)
+        
+        // Provide manual SQL execution instructions
+        return handleCORS(NextResponse.json({
+          error: "Teacher phase schema initialization failed",
+          details: error.message,
+          manual_instruction: "Please run the SQL in teacher_phase_schema.sql manually in Supabase SQL Editor"
+        }, { status: 500 }))
+      }
+    }
+
     // Initialize demo schools - POST /api/init-demo-schools
     if (route === '/init-demo-schools' && method === 'POST') {
       try {
