@@ -17,7 +17,9 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { BookOpen, Users, Settings, LogOut, User, GraduationCap, UserCheck, Crown, Building, 
          Clock, CheckCircle, XCircle, MessageSquare, Send, Smile, Trophy, TrendingUp, 
-         Brain, HelpCircle, Play, Plus, Hash, Calendar, Target, Award } from 'lucide-react'
+         Brain, HelpCircle, Play, Plus, Hash, Calendar, Target, Award, AlertTriangle,
+         Activity, BarChart3, Mail, Bell, Search, Filter, Eye, Edit, Archive,
+         ChevronRight, ChevronDown, FileText, PhoneCall, UserPlus, Shield } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function App() {
