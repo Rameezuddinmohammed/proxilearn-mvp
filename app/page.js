@@ -273,6 +273,123 @@ export default function App() {
     }
   }
 
+  // Teacher Data Loading Functions
+  const loadTeacherData = async () => {
+    setLoadingData(true)
+    try {
+      await Promise.all([
+        loadTeacherDashboard(),
+        loadSubjects(), // Reuse from student
+        loadLessonPlans(),
+        loadTeacherAssignments(),
+        loadGradebook(),
+        loadTeacherAnalytics(),
+        loadTeacherMessages()
+      ])
+    } catch (error) {
+      console.error('Error loading teacher data:', error)
+      toast.error('Failed to load dashboard data')
+    } finally {
+      setLoadingData(false)
+    }
+  }
+
+  const loadTeacherDashboard = async () => {
+    try {
+      const response = await fetch('/api/teacher/dashboard', {
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      })
+      const data = await response.json()
+      if (response.ok) {
+        setTeacherDashboard(data)
+      }
+    } catch (error) {
+      console.error('Error loading teacher dashboard:', error)
+    }
+  }
+
+  const loadLessonPlans = async () => {
+    try {
+      const response = await fetch('/api/teacher/lesson-plans', {
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      })
+      const data = await response.json()
+      if (response.ok) {
+        setLessonPlans(data.lesson_plans || [])
+      }
+    } catch (error) {
+      console.error('Error loading lesson plans:', error)
+    }
+  }
+
+  const loadTeacherAssignments = async () => {
+    try {
+      const response = await fetch('/api/teacher/assignments', {
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      })
+      const data = await response.json()
+      if (response.ok) {
+        setTeacherAssignments(data.assignments || [])
+      }
+    } catch (error) {
+      console.error('Error loading teacher assignments:', error)
+    }
+  }
+
+  const loadGradebook = async () => {
+    try {
+      const response = await fetch('/api/teacher/gradebook', {
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      })
+      const data = await response.json()
+      if (response.ok) {
+        setGradebook(data.grades || [])
+      }
+    } catch (error) {
+      console.error('Error loading gradebook:', error)
+    }
+  }
+
+  const loadTeacherAnalytics = async () => {
+    try {
+      const response = await fetch('/api/teacher/analytics', {
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      })
+      const data = await response.json()
+      if (response.ok) {
+        setTeacherAnalytics(data)
+      }
+    } catch (error) {
+      console.error('Error loading teacher analytics:', error)
+    }
+  }
+
+  const loadTeacherMessages = async () => {
+    try {
+      const response = await fetch('/api/teacher/messages', {
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      })
+      const data = await response.json()
+      if (response.ok) {
+        setTeacherMessages(data.messages || [])
+      }
+    } catch (error) {
+      console.error('Error loading teacher messages:', error)
+    }
+  }
+
   const startQuiz = async (assignment) => {
     try {
       const response = await fetch(`/api/assignments/${assignment.id}/start`, {
