@@ -458,7 +458,7 @@ DECLARE
 BEGIN
     -- Update student counts for all relevant coordinator assignments
     FOR coord_assignment IN (
-        SELECT ca.id FROM public.coordinator_assignments ca
+        SELECT ca.id, ca.grade_level, ca.section FROM public.coordinator_assignments ca
         WHERE ca.grade_level = COALESCE(NEW.grade_level, OLD.grade_level)
         AND (ca.section IS NULL OR ca.section = COALESCE(NEW.section, OLD.section))
         AND ca.is_active = true
@@ -467,8 +467,9 @@ BEGIN
         SET student_count = (
             SELECT COUNT(*) FROM public.user_profiles up
             WHERE up.role = 'student' 
-            AND up.grade_level = coord_assignment.id
+            AND up.grade_level = coord_assignment.grade_level
             AND (coord_assignment.section IS NULL OR up.section = coord_assignment.section)
+            AND COALESCE(up.is_active, true) = true
         ),
         updated_at = NOW()
         WHERE id = coord_assignment.id;
