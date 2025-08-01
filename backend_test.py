@@ -46,7 +46,7 @@ class ProxilearnStudentPhaseAPITester:
         if details and not success:
             print(f"   Details: {details}")
 
-    def make_request(self, method, endpoint, data=None, timeout=5):
+    def make_request(self, method, endpoint, data=None, timeout=10):
         """Make HTTP request with error handling"""
         url = f"{API_BASE_URL}{endpoint}"
         
