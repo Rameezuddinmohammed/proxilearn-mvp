@@ -2382,6 +2382,203 @@ export default function App() {
                   </div>
                 )}
               </TabsContent>
+
+              {/* Gradebook Tab */}
+              <TabsContent value="gradebook" className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Grade Book & Student Performance</h3>
+                  <div className="flex gap-2">
+                    <Select defaultValue="all">
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Filter by subject" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Subjects</SelectItem>
+                        {subjects.map((subject) => (
+                          <SelectItem key={subject.id} value={subject.id}>
+                            {subject.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button variant="outline">
+                      <Settings className="w-4 h-4 mr-2" />
+                      Export Grades
+                    </Button>
+                  </div>
+                </div>
+
+                {gradebook.length === 0 ? (
+                  <Card>
+                    <CardContent className="text-center py-12">
+                      <div className="mx-auto mb-4 p-4 bg-orange-100 rounded-full w-fit">
+                        <Award className="w-8 h-8 text-orange-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold mb-2">No Grades Yet</h3>
+                      <p className="text-gray-600">Grades will appear here once students complete assignments.</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Grade Summary Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <Card>
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-gray-600">Total Students</p>
+                              <p className="text-2xl font-bold">{new Set(gradebook.map(g => g.student_id)).size}</p>
+                            </div>
+                            <Users className="w-8 h-8 text-blue-600" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-gray-600">Avg Grade</p>
+                              <p className="text-2xl font-bold">
+                                {gradebook.length > 0 ? 
+                                  Math.round(gradebook.reduce((sum, g) => sum + g.percentage, 0) / gradebook.length) : 0
+                                }%
+                              </p>
+                            </div>
+                            <TrendingUp className="w-8 h-8 text-green-600" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-gray-600">A Grades</p>
+                              <p className="text-2xl font-bold">
+                                {gradebook.filter(g => g.grade_letter?.startsWith('A')).length}
+                              </p>
+                            </div>
+                            <Award className="w-8 h-8 text-yellow-600" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-gray-600">Need Help</p>
+                              <p className="text-2xl font-bold">
+                                {gradebook.filter(g => g.percentage < 70).length}
+                              </p>
+                            </div>
+                            <HelpCircle className="w-8 h-8 text-red-600" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Grades Table */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Student Grades</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead>
+                              <tr className="border-b">
+                                <th className="text-left p-4 font-medium">Student</th>
+                                <th className="text-left p-4 font-medium">Assignment</th>
+                                <th className="text-left p-4 font-medium">Subject</th>
+                                <th className="text-center p-4 font-medium">Score</th>
+                                <th className="text-center p-4 font-medium">Grade</th>
+                                <th className="text-center p-4 font-medium">Status</th>
+                                <th className="text-center p-4 font-medium">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {gradebook.map((grade) => (
+                                <tr key={grade.id} className="border-b hover:bg-gray-50">
+                                  <td className="p-4">
+                                    <div className="flex items-center gap-3">
+                                      <Avatar className="w-8 h-8">
+                                        <AvatarFallback className="bg-blue-100 text-blue-600">
+                                          {grade.student_name?.charAt(0)}
+                                        </AvatarFallback>
+                                      </Avatar>
+                                      <div>
+                                        <p className="font-medium">{grade.student_name}</p>
+                                        <p className="text-sm text-gray-500">{grade.student_email}</p>
+                                      </div>
+                                    </div>
+                                  </td>
+                                  <td className="p-4">
+                                    <p className="font-medium">{grade.assignment_title}</p>
+                                    <p className="text-sm text-gray-500">
+                                      {new Date(grade.graded_at).toLocaleDateString()}
+                                    </p>
+                                  </td>
+                                  <td className="p-4">
+                                    <Badge className={getSubjectColor(grade.subject)} variant="secondary">
+                                      {grade.subject}
+                                    </Badge>
+                                  </td>
+                                  <td className="p-4 text-center">
+                                    <div className="font-medium">
+                                      {grade.final_score}/{grade.total_points}
+                                    </div>
+                                    <div className="text-sm text-gray-500">
+                                      {Math.round(grade.percentage)}%
+                                    </div>
+                                  </td>
+                                  <td className="p-4 text-center">
+                                    <Badge 
+                                      variant={grade.grade_letter?.startsWith('A') ? 'default' : 
+                                               grade.grade_letter?.startsWith('B') ? 'secondary' : 
+                                               'outline'}
+                                      className={
+                                        grade.grade_letter?.startsWith('A') ? 'bg-green-600' :
+                                        grade.grade_letter?.startsWith('B') ? 'bg-blue-600' :
+                                        grade.percentage < 70 ? 'text-red-600 border-red-200' : ''
+                                      }
+                                    >
+                                      {grade.grade_letter || 'N/A'}
+                                    </Badge>
+                                  </td>
+                                  <td className="p-4 text-center">
+                                    <div className="flex items-center justify-center gap-2">
+                                      {grade.late_submission && (
+                                        <Badge variant="outline" className="text-orange-600 border-orange-200">
+                                          <Clock className="w-3 h-3 mr-1" />
+                                          Late
+                                        </Badge>
+                                      )}
+                                      {grade.manual_score !== null && (
+                                        <Badge variant="outline" className="text-purple-600 border-purple-200">
+                                          Manual
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="p-4 text-center">
+                                    <div className="flex items-center justify-center gap-2">
+                                      <Button variant="outline" size="sm">
+                                        <Settings className="w-3 h-3" />
+                                      </Button>
+                                      <Button variant="outline" size="sm">
+                                        <MessageSquare className="w-3 h-3" />
+                                      </Button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+              </TabsContent>
               
               <Button
                 variant="ghost"
