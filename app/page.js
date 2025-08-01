@@ -3212,21 +3212,966 @@ export default function App() {
       </div>
     )
   }
-                  <p className="text-gray-600 mb-4">
-                    We're building amazing features tailored for {profile.role}s. 
-                    Stay tuned for updates!
-                  </p>
-                  <Badge variant="outline" className="text-blue-600 border-blue-200">
-                    Student Phase Complete ✓
-                  </Badge>
+
+  // Coordinator Dashboard - Google Classroom Inspired Design
+  if (user && profile && profile.role === 'coordinator') {
+    const getRiskColor = (level) => {
+      switch (level) {
+        case 'high': return 'bg-red-100 text-red-800 border-red-200'
+        case 'medium': return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+        case 'low': return 'bg-green-100 text-green-800 border-green-200'
+        default: return 'bg-gray-100 text-gray-800 border-gray-200'
+      }
+    }
+
+    const getStatusColor = (status) => {
+      switch (status) {
+        case 'resolved': return 'bg-green-100 text-green-800 border-green-200'
+        case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+        case 'in_progress': return 'bg-blue-100 text-blue-800 border-blue-200'
+        default: return 'bg-gray-100 text-gray-800 border-gray-200'
+      }
+    }
+
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* Header */}
+        <header className="bg-white border-b border-gray-200 px-4 py-3">
+          <div className="flex items-center justify-between max-w-7xl mx-auto">
+            <div className="flex items-center gap-4">
+              <div className="p-2 bg-purple-600 rounded-lg">
+                <UserCheck className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-semibold text-gray-900">Proxilearn</h1>
+                <p className="text-sm text-gray-500">Coordinator Dashboard</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              <Button
+                onClick={() => setShowRunAIAnalysis(true)}
+                className="bg-blue-600 hover:bg-blue-700"
+                size="sm"
+              >
+                <Brain className="w-4 h-4 mr-2" />
+                Run AI Analysis
+              </Button>
+              
+              <Badge className={`${getRoleBadgeColor(profile.role)} border-0`}>
+                {getRoleIcon(profile.role)}
+                <span className="ml-1 capitalize">{profile.role}</span>
+              </Badge>
+              
+              <div className="flex items-center gap-3">
+                <Avatar className="w-8 h-8">
+                  <AvatarImage src={profile.avatar_url} />
+                  <AvatarFallback className="bg-purple-100 text-purple-600">
+                    {profile.full_name?.charAt(0) || user.email?.charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="hidden sm:block">
+                  <p className="text-sm font-medium text-gray-900">{profile.full_name}</p>
+                  <p className="text-xs text-gray-500">{user.email}</p>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+              
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSignOut}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="max-w-7xl mx-auto px-4 py-8">
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Welcome, {profile.full_name?.split(' ')[0] || 'Coordinator'}! 🎯
+            </h2>
+            <p className="text-gray-600">
+              Monitor student progress, manage interventions, and provide targeted support to help every student succeed.
+            </p>
+          </div>
+
+          {loadingData ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+            </div>
+          ) : (
+            <Tabs value={coordinatorActiveTab} onValueChange={setCoordinatorActiveTab} className="space-y-6">
+              <TabsList className="grid w-full grid-cols-6 max-w-4xl">
+                <TabsTrigger value="overview" className="flex items-center gap-2">
+                  <Activity className="w-4 h-4" />
+                  <span className="hidden sm:inline">Overview</span>
+                </TabsTrigger>
+                <TabsTrigger value="watchlist" className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span className="hidden sm:inline">Watchlist</span>
+                </TabsTrigger>
+                <TabsTrigger value="analytics" className="flex items-center gap-2">
+                  <BarChart3 className="w-4 h-4" />
+                  <span className="hidden sm:inline">Analytics</span>
+                </TabsTrigger>
+                <TabsTrigger value="communications" className="flex items-center gap-2">
+                  <Mail className="w-4 h-4" />
+                  <span className="hidden sm:inline">Messages</span>
+                </TabsTrigger>
+                <TabsTrigger value="interventions" className="flex items-center gap-2">
+                  <Shield className="w-4 h-4" />
+                  <span className="hidden sm:inline">Actions</span>
+                </TabsTrigger>
+                <TabsTrigger value="alerts" className="flex items-center gap-2">
+                  <Bell className="w-4 h-4" />
+                  <span className="hidden sm:inline">Alerts</span>
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Dashboard Overview Tab */}
+              <TabsContent value="overview" className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {coordinatorDashboard?.kpis?.map((kpi, index) => (
+                    <Card key={index} className="hover:shadow-md transition-shadow">
+                      <CardContent className="p-6">
+                        <div className="flex items-center gap-4">
+                          <div className={`p-3 rounded-lg ${
+                            kpi.type === 'homework_completion' ? 'bg-blue-100' :
+                            kpi.type === 'doubts_raised' ? 'bg-orange-100' :
+                            kpi.type === 'at_risk_students' ? 'bg-red-100' :
+                            'bg-green-100'
+                          }`}>
+                            {kpi.type === 'homework_completion' && <BookOpen className="w-6 h-6 text-blue-600" />}
+                            {kpi.type === 'doubts_raised' && <HelpCircle className="w-6 h-6 text-orange-600" />}
+                            {kpi.type === 'at_risk_students' && <AlertTriangle className="w-6 h-6 text-red-600" />}
+                            {kpi.type === 'attendance_rate' && <CheckCircle className="w-6 h-6 text-green-600" />}
+                          </div>
+                          <div>
+                            <p className="text-2xl font-bold text-gray-900">{kpi.value}</p>
+                            <p className="text-sm text-gray-600">{kpi.label}</p>
+                            {kpi.trend && (
+                              <p className={`text-xs flex items-center gap-1 ${
+                                kpi.trend.direction === 'up' ? 'text-green-600' : 'text-red-600'
+                              }`}>
+                                <TrendingUp className="w-3 h-3" />
+                                {kpi.trend.value}%
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+                {/* Recent Alerts & Quick Actions */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Bell className="w-5 h-5" />
+                        Recent Alerts
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {coordinatorAlerts?.slice(0, 5)?.map((alert) => (
+                          <div key={alert.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-2 h-2 rounded-full ${
+                                alert.severity === 'high' ? 'bg-red-500' :
+                                alert.severity === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
+                              }`} />
+                              <div>
+                                <p className="text-sm font-medium">{alert.title}</p>
+                                <p className="text-xs text-gray-600">{alert.description}</p>
+                              </div>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => updateAlertStatus(alert.id, 'acknowledged')}
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Quick Actions</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Button
+                        onClick={() => setShowBulkCommunication(true)}
+                        className="w-full justify-start"
+                        variant="outline"
+                      >
+                        <Mail className="w-4 h-4 mr-2" />
+                        Send Bulk Communication
+                      </Button>
+                      <Button
+                        onClick={() => setShowAddIntervention(true)}
+                        className="w-full justify-start"
+                        variant="outline"
+                      >
+                        <Shield className="w-4 h-4 mr-2" />
+                        Log Intervention
+                      </Button>
+                      <Button
+                        onClick={() => setShowRunAIAnalysis(true)}
+                        className="w-full justify-start"
+                        variant="outline"
+                      >
+                        <Brain className="w-4 h-4 mr-2" />
+                        Run AI Analysis
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </TabsContent>
+
+              {/* AI Watchlist Tab */}
+              <TabsContent value="watchlist" className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">AI-Powered Student Watchlist</h3>
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => setShowRunAIAnalysis(true)}
+                      variant="outline"
+                      size="sm"
+                    >
+                      <Brain className="w-4 h-4 mr-2" />
+                      Refresh AI Analysis
+                    </Button>
+                  </div>
+                </div>
+
+                {supportCategories.length === 0 ? (
+                  <Card>
+                    <CardContent className="text-center py-12">
+                      <div className="mx-auto mb-4 p-4 bg-blue-100 rounded-full w-fit">
+                        <AlertTriangle className="w-8 h-8 text-blue-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold mb-2">No Students in Support Categories</h3>
+                      <p className="text-gray-600 mb-4">Run AI analysis to identify students who may need support.</p>
+                      <Button onClick={() => setShowRunAIAnalysis(true)}>
+                        <Brain className="w-4 h-4 mr-2" />
+                        Run AI Analysis
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {supportCategories.map((student) => (
+                      <Card key={student.id} className="hover:shadow-md transition-shadow">
+                        <CardHeader>
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <CardTitle className="text-lg mb-1">{student.student_name}</CardTitle>
+                              <Badge className={getRiskColor(student.priority_level)} variant="outline">
+                                {student.priority_level} Priority
+                              </Badge>
+                            </div>
+                            <Badge className={getSubjectColor(student.support_type)} variant="secondary">
+                              {student.support_type}
+                            </Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-3">
+                            <p className="text-sm text-gray-600">{student.notes}</p>
+                            <div className="text-xs text-gray-500">
+                              <p>Added: {new Date(student.created_at).toLocaleDateString()}</p>
+                              <p>Grade: {student.grade_level} | Section: {student.section}</p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedStudent(student)
+                                  setShowStudentProfile(true)
+                                  loadStudentProfile(student.student_id)
+                                }}
+                                className="flex-1"
+                              >
+                                <Eye className="w-4 h-4 mr-1" />
+                                View Profile
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setInterventionForm({
+                                    ...interventionForm,
+                                    student_id: student.student_id
+                                  })
+                                  setShowAddIntervention(true)
+                                }}
+                              >
+                                <Plus className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* Analytics Tab */}
+              <TabsContent value="analytics" className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Performance Analytics</h3>
+                </div>
+
+                {coordinatorAnalytics ? (
+                  <div className="space-y-6">
+                    {/* AI Insights */}
+                    {coordinatorAnalytics.ai_insights && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <Brain className="w-5 h-5 text-blue-600" />
+                            AI-Generated Insights
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="bg-blue-50 p-4 rounded-lg">
+                            <h4 className="font-semibold mb-2">Key Recommendations:</h4>
+                            <ul className="space-y-2 text-sm">
+                              {coordinatorAnalytics.ai_insights.recommendations?.map((rec, index) => (
+                                <li key={index} className="flex items-start gap-2">
+                                  <ChevronRight className="w-4 h-4 text-blue-600 mt-0.5" />
+                                  <span>{rec}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Performance Metrics */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Grade Distribution</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-3">
+                            {coordinatorAnalytics.grade_distribution?.map((grade) => (
+                              <div key={grade.grade} className="flex items-center justify-between">
+                                <span className="text-sm font-medium">{grade.grade}</span>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-32 bg-gray-200 rounded-full h-2">
+                                    <div
+                                      className="bg-blue-600 h-2 rounded-full"
+                                      style={{ width: `${grade.percentage}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-sm text-gray-600">{grade.percentage}%</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Subject Performance</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-3">
+                            {coordinatorAnalytics.subject_performance?.map((subject) => (
+                              <div key={subject.subject} className="flex items-center justify-between">
+                                <span className="text-sm font-medium">{subject.subject}</span>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className={
+                                    subject.avg_score >= 80 ? 'text-green-600' :
+                                    subject.avg_score >= 60 ? 'text-yellow-600' : 'text-red-600'
+                                  }>
+                                    {subject.avg_score}%
+                                  </Badge>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </div>
+                ) : (
+                  <Card>
+                    <CardContent className="text-center py-12">
+                      <div className="mx-auto mb-4 p-4 bg-gray-100 rounded-full w-fit">
+                        <BarChart3 className="w-8 h-8 text-gray-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold mb-2">No Analytics Data</h3>
+                      <p className="text-gray-600">Analytics data will appear once students begin using the platform.</p>
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
+
+              {/* Communications Tab */}
+              <TabsContent value="communications" className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Bulk Communications</h3>
+                  <Button onClick={() => setShowBulkCommunication(true)}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Send Message
+                  </Button>
+                </div>
+
+                {coordinatorCommunications.length === 0 ? (
+                  <Card>
+                    <CardContent className="text-center py-12">
+                      <div className="mx-auto mb-4 p-4 bg-blue-100 rounded-full w-fit">
+                        <Mail className="w-8 h-8 text-blue-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold mb-2">No Communications Yet</h3>
+                      <p className="text-gray-600 mb-4">Send your first bulk communication to students or parents.</p>
+                      <Button onClick={() => setShowBulkCommunication(true)}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Send Message
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="space-y-4">
+                    {coordinatorCommunications.map((comm) => (
+                      <Card key={comm.id} className="hover:shadow-md">
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Badge className={
+                                  comm.priority === 'high' ? 'bg-red-100 text-red-800' :
+                                  comm.priority === 'medium' ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-green-100 text-green-800'
+                                }>
+                                  {comm.priority} Priority
+                                </Badge>
+                                <Badge variant="outline">{comm.type}</Badge>
+                                <Badge variant="outline">{comm.recipients}</Badge>
+                              </div>
+                              <h4 className="font-semibold mb-2">{comm.title}</h4>
+                              <p className="text-sm text-gray-600 mb-2">{comm.message}</p>
+                              <p className="text-xs text-gray-500">
+                                Sent: {new Date(comm.sent_at).toLocaleString()}
+                              </p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* Interventions Tab */}
+              <TabsContent value="interventions" className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Student Interventions</h3>
+                  <Button onClick={() => setShowAddIntervention(true)}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Log Intervention
+                  </Button>
+                </div>
+
+                {interventions.length === 0 ? (
+                  <Card>
+                    <CardContent className="text-center py-12">
+                      <div className="mx-auto mb-4 p-4 bg-green-100 rounded-full w-fit">
+                        <Shield className="w-8 h-8 text-green-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold mb-2">No Interventions Logged</h3>
+                      <p className="text-gray-600 mb-4">Start logging interventions to track student support actions.</p>
+                      <Button onClick={() => setShowAddIntervention(true)}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Log First Intervention
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="space-y-4">
+                    {interventions.map((intervention) => (
+                      <Card key={intervention.id} className="hover:shadow-md">
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Badge variant="outline">{intervention.type}</Badge>
+                                {intervention.follow_up_required && (
+                                  <Badge className="bg-orange-100 text-orange-800">Follow-up Required</Badge>
+                                )}
+                              </div>
+                              <h4 className="font-semibold mb-2">{intervention.student_name}</h4>
+                              <p className="text-sm text-gray-600 mb-2">
+                                <strong>Description:</strong> {intervention.description}
+                              </p>
+                              <p className="text-sm text-gray-600 mb-2">
+                                <strong>Action Taken:</strong> {intervention.action_taken}
+                              </p>
+                              {intervention.participants?.length > 0 && (
+                                <p className="text-sm text-gray-600 mb-2">
+                                  <strong>Participants:</strong> {intervention.participants.join(', ')}
+                                </p>
+                              )}
+                              <p className="text-xs text-gray-500">
+                                Logged: {new Date(intervention.created_at).toLocaleString()} by {intervention.coordinator_name}
+                              </p>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* Alerts Tab */}
+              <TabsContent value="alerts" className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">System Alerts</h3>
+                  <Button
+                    onClick={() => setShowRunAIAnalysis(true)}
+                    variant="outline"
+                    size="sm"
+                  >
+                    <Brain className="w-4 h-4 mr-2" />
+                    Generate New Alerts
+                  </Button>
+                </div>
+
+                {coordinatorAlerts.length === 0 ? (
+                  <Card>
+                    <CardContent className="text-center py-12">
+                      <div className="mx-auto mb-4 p-4 bg-blue-100 rounded-full w-fit">
+                        <Bell className="w-8 h-8 text-blue-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold mb-2">No Active Alerts</h3>
+                      <p className="text-gray-600 mb-4">Run AI analysis to generate automated alerts for your attention.</p>
+                      <Button onClick={() => setShowRunAIAnalysis(true)}>
+                        <Brain className="w-4 h-4 mr-2" />
+                        Generate Alerts
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="space-y-4">
+                    {coordinatorAlerts.map((alert) => (
+                      <Card key={alert.id} className="hover:shadow-md">
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start gap-3 flex-1">
+                              <div className={`w-3 h-3 rounded-full mt-1 ${
+                                alert.severity === 'high' ? 'bg-red-500' :
+                                alert.severity === 'medium' ? 'bg-yellow-500' : 'bg-green-500'
+                              }`} />
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Badge className={getRiskColor(alert.severity)}>
+                                    {alert.severity} Severity
+                                  </Badge>
+                                  <Badge className={getStatusColor(alert.status)} variant="outline">
+                                    {alert.status}
+                                  </Badge>
+                                  <Badge variant="outline">{alert.alert_type}</Badge>
+                                </div>
+                                <h4 className="font-semibold mb-2">{alert.title}</h4>
+                                <p className="text-sm text-gray-600 mb-2">{alert.description}</p>
+                                <p className="text-xs text-gray-500">
+                                  Created: {new Date(alert.created_at).toLocaleString()}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex gap-2 ml-4">
+                              {alert.status === 'pending' && (
+                                <Button
+                                  size="sm"
+                                  onClick={() => updateAlertStatus(alert.id, 'acknowledged')}
+                                >
+                                  Acknowledge
+                                </Button>
+                              )}
+                              {alert.status === 'acknowledged' && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => updateAlertStatus(alert.id, 'resolved')}
+                                >
+                                  Resolve
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          )}
         </main>
+
+        {/* Student Profile Modal - "Janm Kundli" */}
+        <Dialog open={showStudentProfile} onOpenChange={setShowStudentProfile}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <User className="w-5 h-5" />
+                Student Academic Profile - "Janm Kundli"
+              </DialogTitle>
+              <DialogDescription>
+                Comprehensive academic and behavioral profile for {selectedStudent?.student_name}
+              </DialogDescription>
+            </DialogHeader>
+            
+            {studentProfile && (
+              <div className="space-y-6">
+                {/* Basic Info */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card>
+                    <CardContent className="p-4">
+                      <h4 className="font-semibold mb-2">Student Information</h4>
+                      <div className="space-y-1 text-sm">
+                        <p><strong>Name:</strong> {studentProfile.student_name}</p>
+                        <p><strong>Grade:</strong> {studentProfile.grade_level}</p>
+                        <p><strong>Section:</strong> {studentProfile.section}</p>
+                        <p><strong>Roll Number:</strong> {studentProfile.roll_number}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardContent className="p-4">
+                      <h4 className="font-semibold mb-2">Academic Summary</h4>
+                      <div className="space-y-1 text-sm">
+                        <p><strong>Overall Score:</strong> {studentProfile.overall_score}%</p>
+                        <p><strong>Assignments:</strong> {studentProfile.total_assignments}</p>
+                        <p><strong>Completion Rate:</strong> {studentProfile.completion_rate}%</p>
+                        <p><strong>Doubts Raised:</strong> {studentProfile.total_doubts}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  
+                  <Card>
+                    <CardContent className="p-4">
+                      <h4 className="font-semibold mb-2">Support Status</h4>
+                      <div className="space-y-2">
+                        {studentProfile.support_categories?.map((cat, index) => (
+                          <Badge key={index} className={getRiskColor(cat.priority_level)} variant="outline">
+                            {cat.support_type}
+                          </Badge>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Academic Performance */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Subject-wise Performance</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {studentProfile.subject_performance?.map((subject) => (
+                        <div key={subject.subject} className="p-3 bg-gray-50 rounded-lg">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-medium">{subject.subject}</span>
+                            <Badge variant="outline" className={
+                              subject.avg_score >= 80 ? 'text-green-600' :
+                              subject.avg_score >= 60 ? 'text-yellow-600' : 'text-red-600'
+                            }>
+                              {subject.avg_score}%
+                            </Badge>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className={`h-2 rounded-full ${
+                                subject.avg_score >= 80 ? 'bg-green-600' :
+                                subject.avg_score >= 60 ? 'bg-yellow-600' : 'bg-red-600'
+                              }`}
+                              style={{ width: `${subject.avg_score}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Recent Activity */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Recent Activity & Communications</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {studentProfile.recent_activities?.map((activity, index) => (
+                        <div key={index} className="p-3 border rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium">{activity.type}</p>
+                              <p className="text-sm text-gray-600">{activity.description}</p>
+                            </div>
+                            <span className="text-xs text-gray-500">
+                              {new Date(activity.date).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Bulk Communication Modal */}
+        <Dialog open={showBulkCommunication} onOpenChange={setShowBulkCommunication}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Send Bulk Communication</DialogTitle>
+              <DialogDescription>
+                Send messages to multiple students, parents, or teachers at once.
+              </DialogDescription>
+            </DialogHeader>
+            <form action={sendBulkCommunication} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="type">Message Type</Label>
+                  <Select name="type" defaultValue={communicationForm.type}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="announcement">Announcement</SelectItem>
+                      <SelectItem value="reminder">Reminder</SelectItem>
+                      <SelectItem value="alert">Alert</SelectItem>
+                      <SelectItem value="update">Update</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="recipients">Recipients</Label>
+                  <Select name="recipients" defaultValue={communicationForm.recipients}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all_students">All Students</SelectItem>
+                      <SelectItem value="all_parents">All Parents</SelectItem>
+                      <SelectItem value="at_risk_students">At-Risk Students</SelectItem>
+                      <SelectItem value="specific_grade">Specific Grade</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="priority">Priority Level</Label>
+                <Select name="priority" defaultValue={communicationForm.priority}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="title">Subject/Title</Label>
+                <Input
+                  id="title"
+                  name="title"
+                  placeholder="Enter message subject"
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="message">Message</Label>
+                <Textarea
+                  id="message"
+                  name="message"
+                  placeholder="Type your message here..."
+                  rows={5}
+                  required
+                />
+              </div>
+              <DialogFooter>
+                <Button type="submit">Send Message</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add Intervention Modal */}
+        <Dialog open={showAddIntervention} onOpenChange={setShowAddIntervention}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Log Student Intervention</DialogTitle>
+              <DialogDescription>
+                Record details of support actions taken for students.
+              </DialogDescription>
+            </DialogHeader>
+            <form action={addIntervention} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="student_id">Student</Label>
+                <Select name="student_id" defaultValue={interventionForm.student_id}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select student" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {supportCategories.map((student) => (
+                      <SelectItem key={student.student_id} value={student.student_id}>
+                        {student.student_name} - {student.grade_level}{student.section}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="type">Intervention Type</Label>
+                <Select name="type" defaultValue={interventionForm.type}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="academic_support">Academic Support</SelectItem>
+                    <SelectItem value="behavioral_support">Behavioral Support</SelectItem>
+                    <SelectItem value="parent_meeting">Parent Meeting</SelectItem>
+                    <SelectItem value="counseling">Counseling</SelectItem>
+                    <SelectItem value="peer_mentoring">Peer Mentoring</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  name="description"
+                  placeholder="Describe the issue or concern..."
+                  rows={3}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="action_taken">Action Taken</Label>
+                <Textarea
+                  id="action_taken"
+                  name="action_taken"
+                  placeholder="Describe the intervention actions taken..."
+                  rows={3}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="participants">Participants (optional)</Label>
+                <Input
+                  id="participants"
+                  name="participants"
+                  placeholder="Comma-separated list of participants"
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="follow_up_required"
+                  name="follow_up_required"
+                  value="true"
+                  defaultChecked={interventionForm.follow_up_required}
+                />
+                <Label htmlFor="follow_up_required">Follow-up required</Label>
+              </div>
+              <DialogFooter>
+                <Button type="submit">Log Intervention</Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Run AI Analysis Modal */}
+        <Dialog open={showRunAIAnalysis} onOpenChange={setShowRunAIAnalysis}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Run AI Analysis</DialogTitle>
+              <DialogDescription>
+                Trigger AI-powered analysis to identify students needing support and generate alerts.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h4 className="font-semibold mb-2">AI Analysis will:</h4>
+                <ul className="space-y-1 text-sm text-blue-800">
+                  <li>• Analyze homework completion patterns</li>
+                  <li>• Identify students with declining performance</li>
+                  <li>• Generate support category recommendations</li>
+                  <li>• Create automated alerts for your attention</li>
+                </ul>
+              </div>
+              <p className="text-sm text-gray-600">
+                This process may take a few moments to complete. You'll be notified when new insights are available.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowRunAIAnalysis(false)}>
+                Cancel
+              </Button>
+              <Button onClick={runAIAnalysis} className="bg-blue-600 hover:bg-blue-700">
+                <Brain className="w-4 h-4 mr-2" />
+                Run Analysis
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     )
   }
+
+  // Default for other roles or unknown states
+  if (user && profile) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-2xl">
+          <CardContent className="text-center py-12">
+            <div className="mx-auto mb-4 p-4 bg-gray-100 rounded-full w-fit">
+              <User className="w-12 h-12 text-gray-600" />
+            </div>
+            <h3 className="text-2xl font-semibold mb-2">Welcome to Proxilearn!</h3>
+            <Badge className={`${getRoleBadgeColor(profile.role)} border-0 mb-4`} variant="secondary">
+              {getRoleIcon(profile.role)}
+              <span className="ml-1 capitalize">{profile.role}</span>
+            </Badge>
+            <div className="bg-blue-50 p-6 rounded-lg">
+              <h4 className="font-semibold mb-2">Your Dashboard is Coming Soon!</h4>
+              <p className="text-gray-600 mb-4">
+                We're working hard to bring you an amazing {profile.role} experience.
+                This dashboard will include all the tools and features you need to excel in your role.
+              </p>
+              <Button variant="outline">
+                <Settings className="w-4 h-4 mr-2" />
+                View Profile Settings
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
   // Authentication Screen
   return (
