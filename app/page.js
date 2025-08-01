@@ -1782,8 +1782,8 @@ export default function App() {
     )
   }
 
-  // Non-student roles show placeholder
-  if (user && profile) {
+  // Teacher Dashboard
+  if (user && profile && profile.role === 'teacher') {
     return (
       <div className="min-h-screen bg-gray-50">
         {/* Header */}
@@ -1795,7 +1795,7 @@ export default function App() {
               </div>
               <div>
                 <h1 className="text-xl font-semibold text-gray-900">Proxilearn</h1>
-                <p className="text-sm text-gray-500">Educational Platform</p>
+                <p className="text-sm text-gray-500">Teacher Dashboard</p>
               </div>
             </div>
             
@@ -1817,6 +1817,180 @@ export default function App() {
                   <p className="text-xs text-gray-500">{user.email}</p>
                 </div>
               </div>
+              
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSignOut}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="max-w-7xl mx-auto px-4 py-8">
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Welcome back, {profile.full_name?.split(' ')[0] || 'Teacher'}! 👋
+            </h2>
+            <p className="text-gray-600">
+              Ready to inspire and educate your students today?
+            </p>
+          </div>
+
+          {loadingData ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : (
+            <Tabs value={teacherActiveTab} onValueChange={setTeacherActiveTab} className="space-y-6">
+              <TabsList className="grid w-full grid-cols-5 max-w-3xl">
+                <TabsTrigger value="overview" className="flex items-center gap-2">
+                  <Target className="w-4 h-4" />
+                  <span className="hidden sm:inline">Overview</span>
+                </TabsTrigger>
+                <TabsTrigger value="lessons" className="flex items-center gap-2">
+                  <Brain className="w-4 h-4" />
+                  <span className="hidden sm:inline">Lessons</span>
+                </TabsTrigger>
+                <TabsTrigger value="assignments" className="flex items-center gap-2">
+                  <BookOpen className="w-4 h-4" />
+                  <span className="hidden sm:inline">Assignments</span>
+                </TabsTrigger>
+                <TabsTrigger value="gradebook" className="flex items-center gap-2">
+                  <Award className="w-4 h-4" />
+                  <span className="hidden sm:inline">Gradebook</span>
+                </TabsTrigger>
+                <TabsTrigger value="analytics" className="flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4" />
+                  <span className="hidden sm:inline">Analytics</span>
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Overview Tab */}
+              <TabsContent value="overview" className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Dashboard Overview</h3>
+                </div>
+
+                {teacherDashboard && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <Card>
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-gray-600">Total Classes</p>
+                            <p className="text-2xl font-bold">{teacherDashboard.total_classes || 0}</p>
+                          </div>
+                          <Users className="w-8 h-8 text-blue-600" />
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-gray-600">Total Students</p>
+                            <p className="text-2xl font-bold">{teacherDashboard.total_students || 0}</p>
+                          </div>
+                          <GraduationCap className="w-8 h-8 text-green-600" />
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-gray-600">Assignments</p>
+                            <p className="text-2xl font-bold">{teacherDashboard.total_assignments || 0}</p>
+                          </div>
+                          <BookOpen className="w-8 h-8 text-purple-600" />
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-gray-600">Lesson Plans</p>
+                            <p className="text-2xl font-bold">{teacherDashboard.total_lesson_plans || 0}</p>
+                          </div>
+                          <Brain className="w-8 h-8 text-orange-600" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Recent Assignments */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <BookOpen className="w-5 h-5" />
+                        Recent Assignments
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {teacherAssignments.length === 0 ? (
+                        <p className="text-gray-500 text-center py-4">No assignments yet</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {teacherAssignments.slice(0, 5).map((assignment) => (
+                            <div key={assignment.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                              <div>
+                                <p className="font-medium">{assignment.title}</p>
+                                <p className="text-sm text-gray-600">{assignment.subject}</p>
+                              </div>
+                              <Badge 
+                                variant={assignment.status === 'published' ? 'default' : 'secondary'}
+                                className={assignment.status === 'published' ? 'bg-green-600' : ''}
+                              >
+                                {assignment.status}
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Recent Lesson Plans */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Brain className="w-5 h-5" />
+                        Recent Lesson Plans
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {lessonPlans.length === 0 ? (
+                        <p className="text-gray-500 text-center py-4">No lesson plans yet</p>
+                      ) : (
+                        <div className="space-y-3">
+                          {lessonPlans.slice(0, 5).map((plan) => (
+                            <div key={plan.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                              <div>
+                                <p className="font-medium">{plan.title}</p>
+                                <p className="text-sm text-gray-600">{plan.subject}</p>
+                              </div>
+                              <Badge variant="outline">
+                                {plan.duration_minutes}min
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+              </TabsContent>
               
               <Button
                 variant="ghost"
