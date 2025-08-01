@@ -122,6 +122,185 @@ Make sure the JSON is valid and properly formatted.`
   }
 }
 
+// Helper function to generate AI lesson plans
+async function generateLessonPlan(topic, subject, gradeLevel, duration = 40, customPrompt = null) {
+  const prompt = customPrompt || `Create a comprehensive ${duration}-minute lesson plan for ${subject} on the topic "${topic}" for Grade ${gradeLevel} students.
+
+Please provide a structured lesson plan with the following components:
+
+1. Learning Objectives (3-5 clear, measurable objectives)
+2. Key Concepts (main ideas students should understand)
+3. Discussion Points (thought-provoking questions for class engagement)
+4. Activities (interactive learning activities with timing)
+5. Resources (educational materials, videos, links, demonstrations)
+6. Assessment Notes (how to check student understanding)
+7. Homework Suggestions (reinforcement activities)
+
+Format the response as a JSON object with these keys:
+{
+  "keyConcepts": ["concept1", "concept2", ...],
+  "discussionPoints": ["question1", "question2", ...],
+  "activities": [
+    {
+      "type": "activity_type",
+      "description": "activity description",
+      "duration": "10 minutes",
+      "resources": ["resource1", "resource2"]
+    }
+  ],
+  "resources": [
+    {
+      "type": "video|document|website|demonstration",
+      "title": "Resource Title", 
+      "url": "https://example.com (if available)",
+      "description": "How this resource supports learning"
+    }
+  ],
+  "assessmentNotes": "How to assess student understanding during and after the lesson",
+  "homeworkSuggestions": "Suggested homework or follow-up activities"
+}`
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: process.env.KIMI_MODEL || 'gpt-3.5-turbo',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an experienced educator and curriculum designer. Create engaging, pedagogically sound lesson plans that promote active learning and student engagement.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 2500
+    })
+
+    const content = completion.choices[0].message.content.trim()
+    // Extract JSON from the response
+    const jsonMatch = content.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) {
+      throw new Error('Could not extract valid JSON from AI lesson plan response')
+    }
+
+    return JSON.parse(jsonMatch[0])
+  } catch (error) {
+    console.error('AI Lesson Plan Generation Error:', error)
+    throw new Error('Failed to generate lesson plan with AI')
+  }
+}
+
+// Helper function to generate assessment questions with balanced difficulty
+async function generateAssessmentQuestions(topics, subject, totalQuestions, difficultyDistribution) {
+  const easyCount = Math.round(totalQuestions * (difficultyDistribution.easy / 100))
+  const mediumCount = Math.round(totalQuestions * (difficultyDistribution.medium / 100))
+  const hardCount = totalQuestions - easyCount - mediumCount
+
+  const prompt = `Generate ${totalQuestions} assessment questions for ${subject} covering these topics: ${topics.join(', ')}.
+
+Distribution needed:
+- Easy: ${easyCount} questions (basic recall and understanding)
+- Medium: ${mediumCount} questions (application and analysis)
+- Hard: ${hardCount} questions (evaluation and synthesis)
+
+For each question, provide:
+1. Question text (clear and unambiguous)
+2. Question type (multiple_choice, short_answer, or essay)
+3. For multiple choice: 4 options with one correct answer
+4. Correct answer
+5. Explanation of the correct answer
+6. Points value (1-5 based on difficulty)
+7. Difficulty level (easy/medium/hard)
+8. Topic covered
+
+Format as a JSON array:
+[
+  {
+    "question": "Question text here?",
+    "type": "multiple_choice",
+    "options": ["A) Option 1", "B) Option 2", "C) Option 3", "D) Option 4"],
+    "correct_answer": "A) Option 1",
+    "explanation": "Explanation of why this is correct",
+    "points": 2,
+    "difficulty": "medium",
+    "topic": "specific topic name"
+  }
+]
+
+Ensure questions are:
+- Age-appropriate for the grade level
+- Clear and unambiguous
+- Properly balanced across topics
+- Pedagogically sound
+- Test different cognitive levels according to difficulty`
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: process.env.KIMI_MODEL || 'gpt-3.5-turbo',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an expert assessment designer and educator. Create high-quality, balanced assessment questions that accurately measure student understanding across different cognitive levels.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 3000
+    })
+
+    const content = completion.choices[0].message.content.trim()
+    // Extract JSON from the response
+    const jsonMatch = content.match(/\[[\s\S]*\]/)
+    if (!jsonMatch) {
+      throw new Error('Could not extract valid JSON from AI assessment response')
+    }
+
+    return JSON.parse(jsonMatch[0])
+  } catch (error) {
+    console.error('AI Assessment Generation Error:', error)
+    throw new Error('Failed to generate assessment questions with AI')
+  }
+}
+
+// Helper function to generate teacher insights
+function generateTeacherInsights(assignmentPerformance, gradeDistribution) {
+  const insights = []
+  
+  // Analyze completion rates
+  const avgCompletionRate = assignmentPerformance.reduce((sum, a) => sum + a.completionRate, 0) / assignmentPerformance.length
+  if (avgCompletionRate < 70) {
+    insights.push("Low completion rates detected. Consider reducing assignment difficulty or extending deadlines.")
+  } else if (avgCompletionRate > 90) {
+    insights.push("Excellent completion rates! Students are well-engaged with assignments.")
+  }
+
+  // Analyze grade distribution  
+  const totalGrades = Object.values(gradeDistribution).reduce((sum, count) => sum + count, 0)
+  if (totalGrades > 0) {
+    const failureRate = (gradeDistribution.F / totalGrades) * 100
+    const excellenceRate = (gradeDistribution.A / totalGrades) * 100
+    
+    if (failureRate > 20) {
+      insights.push("High failure rate detected. Consider reviewing teaching methods or assignment difficulty.")
+    }
+    if (excellenceRate > 40) {
+      insights.push("Many students achieving excellence! Consider introducing more challenging content.")
+    }
+  }
+
+  // Analyze performance trends
+  const lowPerformingAssignments = assignmentPerformance.filter(a => a.averageScore < 60)
+  if (lowPerformingAssignments.length > 0) {
+    insights.push(`Topics needing attention: ${lowPerformingAssignments.map(a => a.title).join(', ')}`)
+  }
+
+  return insights.length > 0 ? insights : ["Your students are performing well overall! Keep up the great work."]
+}
+
 // Helper function to generate AI doubt response
 async function generateDoubtResponse(question, context, subject) {
   const prompt = `A student has asked the following question about ${subject}:
