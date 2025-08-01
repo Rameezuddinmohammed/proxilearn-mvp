@@ -85,10 +85,14 @@ class ProxilearnStudentPhaseAPITester:
         """Test GET /api/subjects"""
         print("\n=== SUBJECTS API TESTS ===")
         
+        print(f"Testing URL: {API_BASE_URL}/subjects")
         response = self.make_request('GET', '/subjects')
         if not response:
             self.log_test("Subjects API - Network", False, "No response received")
             return False
+        
+        print(f"Response status: {response.status_code}")
+        print(f"Response text: {response.text[:200]}...")
         
         if response.status_code == 401:
             self.log_test("Subjects API - Authentication", True, "Properly requires authentication")
