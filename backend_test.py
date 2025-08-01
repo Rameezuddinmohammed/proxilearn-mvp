@@ -879,8 +879,54 @@ class TeacherPhaseAPITester:
         return passed_tests, failed_tests, total_tests
 
 if __name__ == "__main__":
-    tester = TeacherPhaseAPITester()
-    passed, failed, total = tester.run_all_tests()
+    # Test both Teacher Phase and Coordinator Phase
+    print("🚀 STARTING COMPREHENSIVE PROXILEARN BACKEND API TESTING")
+    print("Testing both Teacher Phase and Coordinator Phase APIs")
+    print("=" * 80)
+    print()
+    
+    # Test Teacher Phase
+    teacher_tester = TeacherPhaseAPITester()
+    teacher_passed, teacher_failed, teacher_total = teacher_tester.run_all_tests()
+    
+    print("\n" + "=" * 80)
+    print()
+    
+    # Test Coordinator Phase
+    coordinator_tester = CoordinatorPhaseAPITester()
+    coordinator_passed, coordinator_failed, coordinator_total = coordinator_tester.run_all_coordinator_tests()
+    
+    # Combined Summary
+    print("\n" + "=" * 80)
+    print("🎯 COMBINED TESTING SUMMARY")
+    print("=" * 80)
+    
+    total_all_tests = teacher_total + coordinator_total
+    total_all_passed = teacher_passed + coordinator_passed
+    total_all_failed = teacher_failed + coordinator_failed
+    
+    print(f"TEACHER PHASE: {teacher_passed}/{teacher_total} tests passed ({(teacher_passed/teacher_total)*100:.1f}%)")
+    print(f"COORDINATOR PHASE: {coordinator_passed}/{coordinator_total} tests passed ({(coordinator_passed/coordinator_total)*100:.1f}%)")
+    print(f"OVERALL: {total_all_passed}/{total_all_tests} tests passed ({(total_all_passed/total_all_tests)*100:.1f}%)")
+    
+    print()
+    print("🏆 PROXILEARN BACKEND API STATUS:")
+    if total_all_failed == 0:
+        print("✅ ALL TESTS PASSED - Backend APIs are fully functional!")
+    else:
+        print(f"⚠️  {total_all_failed} tests failed - See details above")
+    
+    print()
+    print("📚 FEATURES TESTED:")
+    print("TEACHER PHASE (8 major features):")
+    print("  - Teacher Dashboard, AI Lesson Planner, Assignment/Quiz Creation")
+    print("  - Grade Book Management, Analytics & Insights, PDF Assessment Generator")
+    print("  - Communication & Messaging, AI Integration")
+    print()
+    print("COORDINATOR PHASE (13 major APIs):")
+    print("  - Coordinator Dashboard, Support Categories Management, Student Profiles")
+    print("  - Performance Analytics, Bulk Communications, Intervention Tracking")
+    print("  - Alert Management, AI-powered Support Detection")
     
     # Exit with appropriate code
-    sys.exit(0 if failed == 0 else 1)
+    sys.exit(0 if total_all_failed == 0 else 1)
