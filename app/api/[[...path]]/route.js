@@ -2430,6 +2430,873 @@ async function handleRoute(request, { params }) {
       }
     }
 
+    // ================================================================================================
+    // COORDINATOR PHASE APIs
+    // ================================================================================================
+
+    // GET /api/coordinator/dashboard - Coordinator overview with KPIs
+    if (route === '/coordinator/dashboard' && method === 'GET') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        
+        // Verify coordinator role
+        const { data: userProfile, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single()
+
+        if (profileError || userProfile?.role !== 'coordinator') {
+          return handleCORS(NextResponse.json({
+            error: "Coordinator access required"
+          }, { status: 403 }))
+        }
+
+        // Get coordinator assignments
+        const { data: assignments, error: assignmentError } = await supabase
+          .from('coordinator_assignments')
+          .select(`
+            id, grade_level, section, student_count, academic_year,
+            subjects(id, name)
+          `)
+          .eq('coordinator_id', user.id)
+          .eq('is_active', true)
+
+        if (assignmentError) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to fetch coordinator assignments",
+            details: assignmentError.message
+          }, { status: 500 }))
+        }
+
+        // Calculate KPIs using the database function
+        const startDate = new Date()
+        startDate.setDate(startDate.getDate() - 30) // Last 30 days
+        const endDate = new Date()
+
+        const { data: kpis, error: kpiError } = await supabase
+          .rpc('calculate_coordinator_kpis', {
+            p_coordinator_id: user.id,
+            p_start_date: startDate.toISOString().split('T')[0],
+            p_end_date: endDate.toISOString().split('T')[0]
+          })
+
+        // Get recent support categories
+        const { data: supportCategories, error: supportError } = await supabase
+          .from('student_support_categories')
+          .select(`
+            id, support_type, priority_level, current_status, created_at,
+            user_profiles!student_support_categories_student_id_fkey(id, full_name, grade_level, section)
+          `)
+          .eq('coordinator_id', user.id)
+          .eq('current_status', 'active')
+          .order('created_at', { ascending: false })
+          .limit(10)
+
+        // Get recent alerts
+        const { data: alerts, error: alertsError } = await supabase
+          .from('coordinator_alerts')
+          .select(`
+            id, alert_type, severity_level, alert_title, alert_message,
+            is_resolved, acknowledged, created_at,
+            user_profiles!coordinator_alerts_related_student_id_fkey(id, full_name)
+          `)
+          .eq('coordinator_id', user.id)
+          .eq('is_resolved', false)
+          .order('created_at', { ascending: false })
+          .limit(5)
+
+        return handleCORS(NextResponse.json({
+          coordinator: userProfile,
+          assignments: assignments || [],
+          kpis: kpis || {},
+          supportCategories: supportCategories || [],
+          alerts: alerts || [],
+          period: {
+            start: startDate.toISOString(),
+            end: endDate.toISOString()
+          }
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // GET /api/coordinator/support-categories - Student support watchlist
+    if (route === '/coordinator/support-categories' && method === 'GET') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        const url = new URL(request.url)
+        const supportType = url.searchParams.get('support_type')
+        const priorityLevel = url.searchParams.get('priority_level')
+        const status = url.searchParams.get('status') || 'active'
+
+        let query = supabase
+          .from('student_support_categories')
+          .select(`
+            id, support_type, priority_level, category_reason, current_status,
+            ai_detected, teacher_flagged, auto_metrics, intervention_notes,
+            review_date, created_at, updated_at,
+            user_profiles!student_support_categories_student_id_fkey(
+              id, full_name, email, grade_level, section
+            )
+          `)
+          .eq('coordinator_id', user.id)
+          .order('priority_level', { ascending: false })
+          .order('created_at', { ascending: false })
+
+        if (supportType) {
+          query = query.eq('support_type', supportType)
+        }
+        if (priorityLevel) {
+          query = query.eq('priority_level', priorityLevel)
+        }
+        if (status) {
+          query = query.eq('current_status', status)
+        }
+
+        const { data: categories, error } = await query
+
+        if (error) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to fetch support categories",
+            details: error.message
+          }, { status: 500 }))
+        }
+
+        // Group by support type for better organization
+        const groupedCategories = {}
+        categories?.forEach(category => {
+          if (!groupedCategories[category.support_type]) {
+            groupedCategories[category.support_type] = []
+          }
+          groupedCategories[category.support_type].push(category)
+        })
+
+        return handleCORS(NextResponse.json({
+          categories: categories || [],
+          groupedCategories,
+          totalCount: categories?.length || 0,
+          filters: { supportType, priorityLevel, status }
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // POST /api/coordinator/support-categories - Add student to support category
+    if (route === '/coordinator/support-categories' && method === 'POST') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        const body = await request.json()
+
+        const { student_id, support_type, priority_level, category_reason, intervention_notes } = body
+
+        if (!student_id || !support_type || !category_reason) {
+          return handleCORS(NextResponse.json({
+            error: "student_id, support_type, and category_reason are required"
+          }, { status: 400 }))
+        }
+
+        const { data: category, error } = await supabase
+          .from('student_support_categories')
+          .insert({
+            student_id,
+            coordinator_id: user.id,
+            support_type,
+            priority_level: priority_level || 'medium',
+            category_reason,
+            intervention_notes,
+            teacher_flagged: true, // Manual addition by coordinator
+            current_status: 'active'
+          })
+          .select(`
+            *,
+            user_profiles!student_support_categories_student_id_fkey(id, full_name, grade_level, section)
+          `)
+          .single()
+
+        if (error) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to add support category",
+            details: error.message
+          }, { status: 500 }))
+        }
+
+        return handleCORS(NextResponse.json({
+          message: "Student added to support category successfully",
+          category
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // PUT /api/coordinator/support-categories/{id} - Update support category
+    if (route.startsWith('/coordinator/support-categories/') && method === 'PUT') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        const categoryId = route.split('/').pop()
+        const body = await request.json()
+
+        const { current_status, intervention_notes, review_date, resolved_date } = body
+
+        const { data: category, error } = await supabase
+          .from('student_support_categories')
+          .update({
+            current_status,
+            intervention_notes,
+            review_date,
+            resolved_date,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', categoryId)
+          .eq('coordinator_id', user.id)
+          .select(`
+            *,
+            user_profiles!student_support_categories_student_id_fkey(id, full_name, grade_level, section)
+          `)
+          .single()
+
+        if (error) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to update support category",
+            details: error.message
+          }, { status: 500 }))
+        }
+
+        return handleCORS(NextResponse.json({
+          message: "Support category updated successfully",
+          category
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // GET /api/coordinator/students/{id}/profile - Comprehensive student profile ("Academic Passport")
+    if (route.startsWith('/coordinator/students/') && route.endsWith('/profile') && method === 'GET') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        const studentId = route.split('/')[3]
+
+        // Get student basic info
+        const { data: student, error: studentError } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', studentId)
+          .single()
+
+        if (studentError) {
+          return handleCORS(NextResponse.json({
+            error: "Student not found",
+            details: studentError.message
+          }, { status: 404 }))
+        }
+
+        // Get student's assignment attempts and scores
+        const { data: attempts, error: attemptsError } = await supabase
+          .from('assignment_attempts')
+          .select(`
+            id, assignment_id, attempt_number, status, total_score, percentage_score,
+            total_time_spent_seconds, submitted_at,
+            assignments!inner(
+              id, title, subject_id, assignment_type, total_questions,
+              subjects!inner(id, name, code)
+            )
+          `)
+          .eq('student_id', studentId)
+          .order('submitted_at', { ascending: false })
+
+        // Get student's doubts
+        const { data: doubts, error: doubtsError } = await supabase
+          .from('doubts')
+          .select(`
+            id, title, question_text, status, priority_level, created_at,
+            subjects!inner(id, name),
+            doubt_responses(
+              id, response_text, response_type, is_helpful, created_at
+            )
+          `)
+          .eq('student_id', studentId)
+          .order('created_at', { ascending: false })
+          .limit(10)
+
+        // Get student's support categories
+        const { data: supportCategories, error: supportError } = await supabase
+          .from('student_support_categories')
+          .select('*')
+          .eq('student_id', studentId)
+          .order('created_at', { ascending: false })
+
+        // Get student's intervention history
+        const { data: interventions, error: interventionsError } = await supabase
+          .from('student_intervention_log')
+          .select('*')
+          .eq('student_id', studentId)
+          .order('intervention_date', { ascending: false })
+
+        // Get student progress
+        const { data: progress, error: progressError } = await supabase
+          .from('student_progress')
+          .select(`
+            *,
+            subjects!inner(id, name)
+          `)
+          .eq('student_id', studentId)
+
+        // Calculate analytics
+        const totalAssignments = attempts?.length || 0
+        const completedAssignments = attempts?.filter(a => a.status === 'completed').length || 0
+        const averageScore = attempts?.length > 0 
+          ? attempts.reduce((sum, a) => sum + (a.percentage_score || 0), 0) / attempts.length 
+          : 0
+
+        const subjectPerformance = {}
+        attempts?.forEach(attempt => {
+          const subject = attempt.assignments.subjects.name
+          if (!subjectPerformance[subject]) {
+            subjectPerformance[subject] = { scores: [], total: 0, count: 0 }
+          }
+          if (attempt.percentage_score) {
+            subjectPerformance[subject].scores.push(attempt.percentage_score)
+            subjectPerformance[subject].total += attempt.percentage_score
+            subjectPerformance[subject].count++
+          }
+        })
+
+        Object.keys(subjectPerformance).forEach(subject => {
+          const perf = subjectPerformance[subject]
+          perf.average = perf.count > 0 ? perf.total / perf.count : 0
+        })
+
+        return handleCORS(NextResponse.json({
+          student,
+          academicData: {
+            totalAssignments,
+            completedAssignments,
+            completionRate: totalAssignments > 0 ? (completedAssignments / totalAssignments) * 100 : 0,
+            averageScore: Math.round(averageScore * 100) / 100,
+            subjectPerformance,
+            attempts: attempts || []
+          },
+          doubts: doubts || [],
+          supportCategories: supportCategories || [],
+          interventions: interventions || [],
+          progress: progress || [],
+          generated_at: new Date().toISOString()
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // GET /api/coordinator/analytics - Performance analytics and insights
+    if (route === '/coordinator/analytics' && method === 'GET') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        const url = new URL(request.url)
+        const period = url.searchParams.get('period') || '30' // days
+        const analysisType = url.searchParams.get('type') || 'grade_performance'
+
+        const startDate = new Date()
+        startDate.setDate(startDate.getDate() - parseInt(period))
+        const endDate = new Date()
+
+        // Get existing analytics or generate new ones
+        let { data: analytics, error: analyticsError } = await supabase
+          .from('coordinator_analytics')
+          .select('*')
+          .eq('coordinator_id', user.id)
+          .eq('analysis_type', analysisType)
+          .gte('period_start', startDate.toISOString().split('T')[0])
+          .lte('period_end', endDate.toISOString().split('T')[0])
+          .order('generated_at', { ascending: false })
+          .limit(1)
+
+        if (!analytics || analytics.length === 0) {
+          // Generate new analytics
+          const { data: students, error: studentsError } = await supabase
+            .from('user_profiles')
+            .select(`
+              id, full_name, grade_level, section,
+              assignment_attempts!inner(
+                id, assignment_id, percentage_score, status, submitted_at,
+                assignments!inner(
+                  id, title, subject_id,
+                  subjects!inner(id, name)
+                )
+              )
+            `)
+            .eq('role', 'student')
+            .gte('assignment_attempts.submitted_at', startDate.toISOString())
+            .lte('assignment_attempts.submitted_at', endDate.toISOString())
+
+          // Process analytics data
+          const metricsData = {
+            totalStudents: students?.length || 0,
+            totalAssignments: 0,
+            averageScore: 0,
+            subjectBreakdown: {},
+            gradeDistribution: { A: 0, B: 0, C: 0, D: 0, F: 0 },
+            completionRates: {}
+          }
+
+          const allScores = []
+          students?.forEach(student => {
+            student.assignment_attempts?.forEach(attempt => {
+              if (attempt.status === 'completed' && attempt.percentage_score) {
+                allScores.push(attempt.percentage_score)
+                metricsData.totalAssignments++
+
+                // Subject breakdown
+                const subject = attempt.assignments.subjects.name
+                if (!metricsData.subjectBreakdown[subject]) {
+                  metricsData.subjectBreakdown[subject] = { scores: [], total: 0, count: 0 }
+                }
+                metricsData.subjectBreakdown[subject].scores.push(attempt.percentage_score)
+                metricsData.subjectBreakdown[subject].total += attempt.percentage_score
+                metricsData.subjectBreakdown[subject].count++
+
+                // Grade distribution
+                if (attempt.percentage_score >= 90) metricsData.gradeDistribution.A++
+                else if (attempt.percentage_score >= 80) metricsData.gradeDistribution.B++
+                else if (attempt.percentage_score >= 70) metricsData.gradeDistribution.C++
+                else if (attempt.percentage_score >= 60) metricsData.gradeDistribution.D++
+                else metricsData.gradeDistribution.F++
+              }
+            })
+          })
+
+          // Calculate averages
+          metricsData.averageScore = allScores.length > 0 
+            ? allScores.reduce((sum, score) => sum + score, 0) / allScores.length 
+            : 0
+
+          Object.keys(metricsData.subjectBreakdown).forEach(subject => {
+            const breakdown = metricsData.subjectBreakdown[subject]
+            breakdown.average = breakdown.count > 0 ? breakdown.total / breakdown.count : 0
+          })
+
+          // Generate AI insights
+          const aiInsights = await generateCoordinatorInsights(metricsData, analysisType)
+
+          // Save analytics to database
+          const { data: newAnalytics, error: insertError } = await supabase
+            .from('coordinator_analytics')
+            .insert({
+              coordinator_id: user.id,
+              analysis_type: analysisType,
+              period_start: startDate.toISOString().split('T')[0],
+              period_end: endDate.toISOString().split('T')[0],
+              metrics_data: metricsData,
+              ai_insights: aiInsights.insights,
+              action_recommendations: aiInsights.recommendations
+            })
+            .select()
+            .single()
+
+          analytics = [newAnalytics]
+        }
+
+        return handleCORS(NextResponse.json({
+          analytics: analytics[0] || null,
+          period: { start: startDate, end: endDate },
+          type: analysisType
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // POST /api/coordinator/communications - Send bulk communication
+    if (route === '/coordinator/communications' && method === 'POST') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        const body = await request.json()
+
+        const {
+          communication_type,
+          target_audience,
+          recipient_ids,
+          subject,
+          message_content,
+          priority_level,
+          scheduled_send,
+          tags
+        } = body
+
+        if (!communication_type || !target_audience || !subject || !message_content) {
+          return handleCORS(NextResponse.json({
+            error: "communication_type, target_audience, subject, and message_content are required"
+          }, { status: 400 }))
+        }
+
+        const { data: communication, error } = await supabase
+          .from('coordinator_communications')
+          .insert({
+            coordinator_id: user.id,
+            communication_type,
+            target_audience,
+            recipient_ids: recipient_ids || [],
+            recipient_count: recipient_ids?.length || 0,
+            subject,
+            message_content,
+            priority_level: priority_level || 'normal',
+            scheduled_send: scheduled_send || null,
+            delivery_status: scheduled_send ? 'scheduled' : 'sent',
+            sent_at: scheduled_send ? null : new Date().toISOString(),
+            tags: tags || []
+          })
+          .select()
+          .single()
+
+        if (error) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to create communication",
+            details: error.message
+          }, { status: 500 }))
+        }
+
+        // If not scheduled, create individual messages for recipients
+        if (!scheduled_send && recipient_ids?.length > 0) {
+          const individualMessages = recipient_ids.map(recipientId => ({
+            sender_id: user.id,
+            recipient_id: recipientId,
+            recipient_type: target_audience.includes('student') ? 'student' : 'parent',
+            subject,
+            message_text: message_content,
+            message_type: communication_type,
+            priority_level: priority_level || 'normal'
+          }))
+
+          const { error: messagesError } = await supabase
+            .from('teacher_messages')
+            .insert(individualMessages)
+
+          if (messagesError) {
+            console.error('Failed to create individual messages:', messagesError)
+          }
+        }
+
+        return handleCORS(NextResponse.json({
+          message: "Communication created successfully",
+          communication
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // GET /api/coordinator/communications - List communications
+    if (route === '/coordinator/communications' && method === 'GET') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        const url = new URL(request.url)
+        const type = url.searchParams.get('type')
+        const status = url.searchParams.get('status')
+
+        let query = supabase
+          .from('coordinator_communications')
+          .select('*')
+          .eq('coordinator_id', user.id)
+          .order('created_at', { ascending: false })
+
+        if (type) {
+          query = query.eq('communication_type', type)
+        }
+        if (status) {
+          query = query.eq('delivery_status', status)
+        }
+
+        const { data: communications, error } = await query
+
+        if (error) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to fetch communications",
+            details: error.message
+          }, { status: 500 }))
+        }
+
+        return handleCORS(NextResponse.json({
+          communications: communications || [],
+          count: communications?.length || 0
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // POST /api/coordinator/interventions - Log student intervention
+    if (route === '/coordinator/interventions' && method === 'POST') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        const body = await request.json()
+
+        const {
+          student_id,
+          support_category_id,
+          intervention_type,
+          intervention_title,
+          intervention_description,
+          participants,
+          action_taken,
+          outcome_notes,
+          follow_up_required,
+          follow_up_date,
+          effectiveness_rating
+        } = body
+
+        if (!student_id || !intervention_type || !intervention_title || !intervention_description || !action_taken) {
+          return handleCORS(NextResponse.json({
+            error: "student_id, intervention_type, intervention_title, intervention_description, and action_taken are required"
+          }, { status: 400 }))
+        }
+
+        const { data: intervention, error } = await supabase
+          .from('student_intervention_log')
+          .insert({
+            student_id,
+            coordinator_id: user.id,
+            support_category_id,
+            intervention_type,
+            intervention_title,
+            intervention_description,
+            participants: participants || [],
+            action_taken,
+            outcome_notes,
+            follow_up_required: follow_up_required || false,
+            follow_up_date,
+            effectiveness_rating
+          })
+          .select(`
+            *,
+            user_profiles!student_intervention_log_student_id_fkey(id, full_name, grade_level, section)
+          `)
+          .single()
+
+        if (error) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to log intervention",
+            details: error.message
+          }, { status: 500 }))
+        }
+
+        return handleCORS(NextResponse.json({
+          message: "Intervention logged successfully",
+          intervention
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // GET /api/coordinator/interventions - List interventions
+    if (route === '/coordinator/interventions' && method === 'GET') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        const url = new URL(request.url)
+        const studentId = url.searchParams.get('student_id')
+        const interventionType = url.searchParams.get('intervention_type')
+        const followUpRequired = url.searchParams.get('follow_up_required')
+
+        let query = supabase
+          .from('student_intervention_log')
+          .select(`
+            *,
+            user_profiles!student_intervention_log_student_id_fkey(id, full_name, grade_level, section)
+          `)
+          .eq('coordinator_id', user.id)
+          .order('intervention_date', { ascending: false })
+
+        if (studentId) {
+          query = query.eq('student_id', studentId)
+        }
+        if (interventionType) {
+          query = query.eq('intervention_type', interventionType)
+        }
+        if (followUpRequired) {
+          query = query.eq('follow_up_required', followUpRequired === 'true')
+        }
+
+        const { data: interventions, error } = await query
+
+        if (error) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to fetch interventions",
+            details: error.message
+          }, { status: 500 }))
+        }
+
+        return handleCORS(NextResponse.json({
+          interventions: interventions || [],
+          count: interventions?.length || 0
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // GET /api/coordinator/alerts - List alerts
+    if (route === '/coordinator/alerts' && method === 'GET') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        const url = new URL(request.url)
+        const severity = url.searchParams.get('severity')
+        const resolved = url.searchParams.get('resolved')
+        const alertType = url.searchParams.get('type')
+
+        let query = supabase
+          .from('coordinator_alerts')
+          .select(`
+            *,
+            user_profiles!coordinator_alerts_related_student_id_fkey(id, full_name, grade_level, section)
+          `)
+          .eq('coordinator_id', user.id)
+          .order('created_at', { ascending: false })
+
+        if (severity) {
+          query = query.eq('severity_level', severity)
+        }
+        if (resolved) {
+          query = query.eq('is_resolved', resolved === 'true')
+        }
+        if (alertType) {
+          query = query.eq('alert_type', alertType)
+        }
+
+        const { data: alerts, error } = await query
+
+        if (error) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to fetch alerts",
+            details: error.message
+          }, { status: 500 }))
+        }
+
+        return handleCORS(NextResponse.json({
+          alerts: alerts || [],
+          count: alerts?.length || 0
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // PUT /api/coordinator/alerts/{id} - Update alert status
+    if (route.startsWith('/coordinator/alerts/') && method === 'PUT') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        const alertId = route.split('/').pop()
+        const body = await request.json()
+
+        const { acknowledged, is_resolved, action_taken } = body
+
+        const { data: alert, error } = await supabase
+          .from('coordinator_alerts')
+          .update({
+            acknowledged: acknowledged !== undefined ? acknowledged : undefined,
+            acknowledged_at: acknowledged ? new Date().toISOString() : undefined,
+            is_resolved: is_resolved !== undefined ? is_resolved : undefined,
+            resolved_at: is_resolved ? new Date().toISOString() : undefined,
+            action_taken,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', alertId)
+          .eq('coordinator_id', user.id)
+          .select()
+          .single()
+
+        if (error) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to update alert",
+            details: error.message
+          }, { status: 500 }))
+        }
+
+        return handleCORS(NextResponse.json({
+          message: "Alert updated successfully",
+          alert
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // POST /api/coordinator/run-ai-analysis - Trigger AI analysis for support detection
+    if (route === '/coordinator/run-ai-analysis' && method === 'POST') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+
+        // Run the AI support detection function
+        const { data, error } = await supabase
+          .rpc('auto_detect_support_needs')
+
+        if (error) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to run AI analysis",
+            details: error.message
+          }, { status: 500 }))
+        }
+
+        // Run alert generation
+        const { data: alertData, error: alertError } = await supabase
+          .rpc('generate_coordinator_alerts')
+
+        if (alertError) {
+          console.error('Alert generation error:', alertError)
+        }
+
+        return handleCORS(NextResponse.json({
+          message: "AI analysis completed successfully",
+          analysis_completed_at: new Date().toISOString()
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    }
+
     // Route not found
     return handleCORS(NextResponse.json(
       { error: `Route ${route} not found` }, 
