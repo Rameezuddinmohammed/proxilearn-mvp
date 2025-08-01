@@ -10,7 +10,14 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
-import { BookOpen, Users, Settings, LogOut, User, GraduationCap, UserCheck, Crown, Building } from 'lucide-react'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Textarea } from '@/components/ui/textarea'
+import { Progress } from '@/components/ui/progress'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { Separator } from '@/components/ui/separator'
+import { BookOpen, Users, Settings, LogOut, User, GraduationCap, UserCheck, Crown, Building, 
+         Clock, CheckCircle, XCircle, MessageSquare, Send, Smile, Trophy, TrendingUp, 
+         Brain, HelpCircle, Play, Plus, Hash, Calendar, Target, Award } from 'lucide-react'
 import { toast } from 'sonner'
 
 export default function App() {
@@ -21,9 +28,38 @@ export default function App() {
   const [schools, setSchools] = useState([])
   const [showOnboarding, setShowOnboarding] = useState(false)
   
+  // Student Dashboard State
+  const [activeTab, setActiveTab] = useState('homework')
+  const [assignments, setAssignments] = useState([])
+  const [subjects, setSubjects] = useState([])
+  const [studyGroups, setStudyGroups] = useState([])
+  const [doubts, setDoubts] = useState([])
+  const [progress, setProgress] = useState(null)
+  const [loadingData, setLoadingData] = useState(false)
+  
+  // Quiz Interface State
+  const [currentQuiz, setCurrentQuiz] = useState(null)
+  const [quizQuestions, setQuizQuestions] = useState([])
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
+  const [selectedAnswers, setSelectedAnswers] = useState({})
+  const [quizTimeLeft, setQuizTimeLeft] = useState(null)
+  const [quizResults, setQuizResults] = useState(null)
+  
+  // Study Groups State
+  const [showCreateGroup, setShowCreateGroup] = useState(false)
+  const [showJoinGroup, setShowJoinGroup] = useState(false)
+  const [showGroupChat, setShowGroupChat] = useState(false)
+  const [selectedGroup, setSelectedGroup] = useState(null)
+  const [groupMessages, setGroupMessages] = useState([])
+  const [newMessage, setNewMessage] = useState('')
+  
+  // Doubts State
+  const [showSubmitDoubt, setShowSubmitDoubt] = useState(false)
+  const [doubtForm, setDoubtForm] = useState({ subject: '', question: '', context: '' })
+  
   const supabase = createClient()
 
-  // Authentication state management
+  // Authentication state management (same as before)
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession()
@@ -53,6 +89,23 @@ export default function App() {
 
     return () => subscription.unsubscribe()
   }, [])
+
+  // Load student data when profile is available
+  useEffect(() => {
+    if (user && profile && profile.role === 'student') {
+      loadStudentData()
+    }
+  }, [user, profile])
+
+  // Quiz timer effect
+  useEffect(() => {
+    if (quizTimeLeft > 0) {
+      const timer = setTimeout(() => setQuizTimeLeft(quizTimeLeft - 1), 1000)
+      return () => clearTimeout(timer)
+    } else if (quizTimeLeft === 0) {
+      handleSubmitQuiz()
+    }
+  }, [quizTimeLeft])
 
   const fetchUserProfile = async (userId) => {
     try {
@@ -95,6 +148,291 @@ export default function App() {
       setSchools(data || [])
     } catch (error) {
       console.error('Error:', error)
+    }
+  }
+
+  const loadStudentData = async () => {
+    setLoadingData(true)
+    try {
+      await Promise.all([
+        loadSubjects(),
+        loadAssignments(),
+        loadStudyGroups(),
+        loadDoubts(),
+        loadProgress()
+      ])
+    } catch (error) {
+      console.error('Error loading student data:', error)
+      toast.error('Failed to load dashboard data')
+    } finally {
+      setLoadingData(false)
+    }
+  }
+
+  const loadSubjects = async () => {
+    try {
+      const response = await fetch('/api/subjects', {
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      })
+      const data = await response.json()
+      if (response.ok) {
+        setSubjects(data.subjects || [])
+      }
+    } catch (error) {
+      console.error('Error loading subjects:', error)
+    }
+  }
+
+  const loadAssignments = async () => {
+    try {
+      const response = await fetch('/api/assignments', {
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      })
+      const data = await response.json()
+      if (response.ok) {
+        setAssignments(data.assignments || [])
+      }
+    } catch (error) {
+      console.error('Error loading assignments:', error)
+    }
+  }
+
+  const loadStudyGroups = async () => {
+    try {
+      const response = await fetch('/api/study-groups', {
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      })
+      const data = await response.json()
+      if (response.ok) {
+        setStudyGroups(data.groups || [])
+      }
+    } catch (error) {
+      console.error('Error loading study groups:', error)
+    }
+  }
+
+  const loadDoubts = async () => {
+    try {
+      const response = await fetch('/api/doubts', {
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      })
+      const data = await response.json()
+      if (response.ok) {
+        setDoubts(data.doubts || [])
+      }
+    } catch (error) {
+      console.error('Error loading doubts:', error)
+    }
+  }
+
+  const loadProgress = async () => {
+    try {
+      const response = await fetch('/api/student/progress', {
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      })
+      const data = await response.json()
+      if (response.ok) {
+        setProgress(data)
+      }
+    } catch (error) {
+      console.error('Error loading progress:', error)
+    }
+  }
+
+  const startQuiz = async (assignment) => {
+    try {
+      const response = await fetch(`/api/assignments/${assignment.id}/start`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      const data = await response.json()
+      
+      if (response.ok) {
+        setCurrentQuiz(assignment)
+        setQuizQuestions(data.questions || [])
+        setCurrentQuestionIndex(0)
+        setSelectedAnswers({})
+        setQuizTimeLeft(assignment.time_limit_minutes * 60) // Convert to seconds
+        setQuizResults(null)
+        toast.success('Quiz started! Good luck!')
+      } else {
+        toast.error(data.error || 'Failed to start quiz')
+      }
+    } catch (error) {
+      console.error('Error starting quiz:', error)
+      toast.error('Failed to start quiz')
+    }
+  }
+
+  const handleSubmitQuiz = async () => {
+    if (!currentQuiz) return
+    
+    try {
+      const response = await fetch(`/api/assignments/${currentQuiz.id}/submit`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ answers: selectedAnswers })
+      })
+      const data = await response.json()
+      
+      if (response.ok) {
+        setQuizResults(data)
+        setQuizTimeLeft(null)
+        toast.success(`Quiz completed! Score: ${data.score}/${data.total_questions}`)
+        await loadAssignments() // Refresh assignments
+        await loadProgress() // Refresh progress
+      } else {
+        toast.error(data.error || 'Failed to submit quiz')
+      }
+    } catch (error) {
+      console.error('Error submitting quiz:', error)
+      toast.error('Failed to submit quiz')
+    }
+  }
+
+  const createStudyGroup = async (formData) => {
+    try {
+      const response = await fetch('/api/study-groups', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          name: formData.get('groupName'),
+          description: formData.get('description')
+        })
+      })
+      const data = await response.json()
+      
+      if (response.ok) {
+        toast.success('Study group created successfully!')
+        setShowCreateGroup(false)
+        await loadStudyGroups()
+      } else {
+        toast.error(data.error || 'Failed to create study group')
+      }
+    } catch (error) {
+      console.error('Error creating study group:', error)
+      toast.error('Failed to create study group')
+    }
+  }
+
+  const joinStudyGroup = async (formData) => {
+    try {
+      const response = await fetch('/api/study-groups/join', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          invite_code: formData.get('inviteCode')
+        })
+      })
+      const data = await response.json()
+      
+      if (response.ok) {
+        toast.success('Joined study group successfully!')
+        setShowJoinGroup(false)
+        await loadStudyGroups()
+      } else {
+        toast.error(data.error || 'Failed to join study group')
+      }
+    } catch (error) {
+      console.error('Error joining study group:', error)
+      toast.error('Failed to join study group')
+    }
+  }
+
+  const loadGroupMessages = async (groupId) => {
+    try {
+      const response = await fetch(`/api/study-groups/${groupId}/chat`, {
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      })
+      const data = await response.json()
+      
+      if (response.ok) {
+        setGroupMessages(data.messages || [])
+      }
+    } catch (error) {
+      console.error('Error loading group messages:', error)
+    }
+  }
+
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !selectedGroup) return
+    
+    try {
+      const response = await fetch(`/api/study-groups/${selectedGroup.id}/chat`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: newMessage.trim(),
+          message_type: 'text'
+        })
+      })
+      
+      if (response.ok) {
+        setNewMessage('')
+        await loadGroupMessages(selectedGroup.id)
+      } else {
+        toast.error('Failed to send message')
+      }
+    } catch (error) {
+      console.error('Error sending message:', error)
+      toast.error('Failed to send message')
+    }
+  }
+
+  const submitDoubt = async (formData) => {
+    try {
+      const response = await fetch('/api/doubts', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          subject: formData.get('subject'),
+          question: formData.get('question'),
+          context: formData.get('context')
+        })
+      })
+      const data = await response.json()
+      
+      if (response.ok) {
+        toast.success('Question submitted successfully! AI is generating a response...')
+        setShowSubmitDoubt(false)
+        setDoubtForm({ subject: '', question: '', context: '' })
+        await loadDoubts()
+      } else {
+        toast.error(data.error || 'Failed to submit question')
+      }
+    } catch (error) {
+      console.error('Error submitting doubt:', error)
+      toast.error('Failed to submit question')
     }
   }
 
@@ -216,6 +554,25 @@ export default function App() {
     }
   }
 
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  const getSubjectColor = (subject) => {
+    const colors = {
+      'Mathematics': 'bg-blue-100 text-blue-800',
+      'Science': 'bg-green-100 text-green-800',
+      'English': 'bg-purple-100 text-purple-800',
+      'History': 'bg-orange-100 text-orange-800',
+      'Geography': 'bg-teal-100 text-teal-800',
+    }
+    return colors[subject] || 'bg-gray-100 text-gray-800'
+  }
+
+  const emojis = ['😊', '👍', '❤️', '😄', '🎉', '👏', '🔥', '💯', '🤔', '😅']
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -333,7 +690,865 @@ export default function App() {
     )
   }
 
-  // Main Dashboard
+  // Quiz Interface
+  if (currentQuiz && !quizResults) {
+    const currentQuestion = quizQuestions[currentQuestionIndex]
+    const isLastQuestion = currentQuestionIndex === quizQuestions.length - 1
+
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* Quiz Header */}
+        <header className="bg-white border-b border-gray-200 px-4 py-3">
+          <div className="flex items-center justify-between max-w-4xl mx-auto">
+            <div className="flex items-center gap-4">
+              <div className="p-2 bg-blue-600 rounded-lg">
+                <Brain className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-semibold text-gray-900">{currentQuiz.title}</h1>
+                <p className="text-sm text-gray-500">{currentQuiz.subject}</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              <Badge variant="outline" className="text-orange-600 border-orange-200">
+                <Clock className="w-4 h-4 mr-1" />
+                {formatTime(quizTimeLeft)}
+              </Badge>
+              <Badge variant="outline">
+                Question {currentQuestionIndex + 1} of {quizQuestions.length}
+              </Badge>
+            </div>
+          </div>
+        </header>
+
+        {/* Quiz Content */}
+        <main className="max-w-4xl mx-auto px-4 py-8">
+          <div className="mb-6">
+            <Progress value={(currentQuestionIndex + 1) / quizQuestions.length * 100} className="h-2" />
+          </div>
+
+          {currentQuestion && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="text-lg">{currentQuestion.question}</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {currentQuestion.options?.map((option, index) => (
+                  <div
+                    key={index}
+                    className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                      selectedAnswers[currentQuestion.id] === option
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                    onClick={() => setSelectedAnswers({
+                      ...selectedAnswers,
+                      [currentQuestion.id]: option
+                    })}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                        selectedAnswers[currentQuestion.id] === option
+                          ? 'border-blue-500 bg-blue-500'
+                          : 'border-gray-300'
+                      }`}>
+                        {selectedAnswers[currentQuestion.id] === option && (
+                          <div className="w-2 h-2 bg-white rounded-full" />
+                        )}
+                      </div>
+                      <span className="font-medium text-gray-700">{String.fromCharCode(65 + index)}.</span>
+                      <span>{option}</span>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Navigation */}
+          <div className="flex justify-between">
+            <Button
+              variant="outline"
+              onClick={() => setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1))}
+              disabled={currentQuestionIndex === 0}
+            >
+              Previous
+            </Button>
+            
+            <div className="flex gap-2">
+              {isLastQuestion ? (
+                <Button
+                  onClick={handleSubmitQuiz}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  Submit Quiz
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => setCurrentQuestionIndex(currentQuestionIndex + 1)}
+                  disabled={!selectedAnswers[currentQuestion?.id]}
+                >
+                  Next
+                </Button>
+              )}
+            </div>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  // Quiz Results Screen
+  if (quizResults) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <Card className="w-full max-w-2xl">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 p-4 bg-green-100 rounded-full w-fit">
+              <Trophy className="w-12 h-12 text-green-600" />
+            </div>
+            <CardTitle className="text-2xl">Quiz Completed!</CardTitle>
+            <CardDescription>Great job on completing {currentQuiz.title}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="text-center">
+              <div className="text-4xl font-bold text-green-600 mb-2">
+                {quizResults.score}/{quizResults.total_questions}
+              </div>
+              <div className="text-lg text-gray-600">
+                {Math.round((quizResults.score / quizResults.total_questions) * 100)}% Score
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="text-center p-4 bg-blue-50 rounded-lg">
+                <div className="text-2xl font-bold text-blue-600">{quizResults.correct_answers}</div>
+                <div className="text-sm text-gray-600">Correct</div>
+              </div>
+              <div className="text-center p-4 bg-red-50 rounded-lg">
+                <div className="text-2xl font-bold text-red-600">{quizResults.incorrect_answers}</div>
+                <div className="text-sm text-gray-600">Incorrect</div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <h3 className="font-semibold">Detailed Results:</h3>
+              <ScrollArea className="h-64">
+                {quizResults.question_results?.map((result, index) => (
+                  <div key={index} className="mb-4 p-4 border rounded-lg">
+                    <div className="flex items-start gap-3 mb-2">
+                      {result.is_correct ? (
+                        <CheckCircle className="w-5 h-5 text-green-600 mt-0.5" />
+                      ) : (
+                        <XCircle className="w-5 h-5 text-red-600 mt-0.5" />
+                      )}
+                      <div className="flex-1">
+                        <p className="font-medium mb-2">{result.question}</p>
+                        <p className="text-sm text-gray-600">
+                          <span className="font-medium">Your answer:</span> {result.student_answer}
+                        </p>
+                        {!result.is_correct && (
+                          <p className="text-sm text-green-600">
+                            <span className="font-medium">Correct answer:</span> {result.correct_answer}
+                          </p>
+                        )}
+                        {result.explanation && (
+                          <p className="text-sm text-gray-500 mt-2 italic">{result.explanation}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </ScrollArea>
+            </div>
+
+            <Button
+              onClick={() => {
+                setCurrentQuiz(null)
+                setQuizResults(null)
+                setQuizQuestions([])
+                setSelectedAnswers({})
+              }}
+              className="w-full"
+            >
+              Back to Dashboard
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Main Student Dashboard
+  if (user && profile && profile.role === 'student') {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* Header */}
+        <header className="bg-white border-b border-gray-200 px-4 py-3">
+          <div className="flex items-center justify-between max-w-7xl mx-auto">
+            <div className="flex items-center gap-4">
+              <div className="p-2 bg-blue-600 rounded-lg">
+                <BookOpen className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-semibold text-gray-900">Proxilearn</h1>
+                <p className="text-sm text-gray-500">Student Dashboard</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              <Badge className={`${getRoleBadgeColor(profile.role)} border-0`}>
+                {getRoleIcon(profile.role)}
+                <span className="ml-1 capitalize">{profile.role}</span>
+              </Badge>
+              
+              <div className="flex items-center gap-3">
+                <Avatar className="w-8 h-8">
+                  <AvatarImage src={profile.avatar_url} />
+                  <AvatarFallback className="bg-blue-100 text-blue-600">
+                    {profile.full_name?.charAt(0) || user.email?.charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="hidden sm:block">
+                  <p className="text-sm font-medium text-gray-900">{profile.full_name}</p>
+                  <p className="text-xs text-gray-500">{user.email}</p>
+                </div>
+              </div>
+              
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleSignOut}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="max-w-7xl mx-auto px-4 py-8">
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              Welcome back, {profile.full_name?.split(' ')[0] || 'Student'}! 👋
+            </h2>
+            <p className="text-gray-600">
+              Ready to learn something new today? Let's get started!
+            </p>
+          </div>
+
+          {loadingData ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : (
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+              <TabsList className="grid w-full grid-cols-4 max-w-2xl">
+                <TabsTrigger value="homework" className="flex items-center gap-2">
+                  <BookOpen className="w-4 h-4" />
+                  <span className="hidden sm:inline">Homework</span>
+                </TabsTrigger>
+                <TabsTrigger value="study-groups" className="flex items-center gap-2">
+                  <Users className="w-4 h-4" />
+                  <span className="hidden sm:inline">Study Groups</span>
+                </TabsTrigger>
+                <TabsTrigger value="doubts" className="flex items-center gap-2">
+                  <HelpCircle className="w-4 h-4" />
+                  <span className="hidden sm:inline">Ask Doubts</span>
+                </TabsTrigger>
+                <TabsTrigger value="progress" className="flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4" />
+                  <span className="hidden sm:inline">Progress</span>
+                </TabsTrigger>
+              </TabsList>
+
+              {/* Interactive Homework Tab */}
+              <TabsContent value="homework" className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Interactive Homework</h3>
+                  <Badge variant="outline" className="text-blue-600">
+                    {assignments.length} Assignments
+                  </Badge>
+                </div>
+
+                {assignments.length === 0 ? (
+                  <Card>
+                    <CardContent className="text-center py-12">
+                      <div className="mx-auto mb-4 p-4 bg-blue-100 rounded-full w-fit">
+                        <BookOpen className="w-8 h-8 text-blue-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold mb-2">No Assignments Yet</h3>
+                      <p className="text-gray-600">Check back later for new assignments from your teachers.</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {assignments.map((assignment) => (
+                      <Card key={assignment.id} className="hover:shadow-md transition-shadow">
+                        <CardHeader>
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <CardTitle className="text-lg mb-1">{assignment.title}</CardTitle>
+                              <Badge className={getSubjectColor(assignment.subject)} variant="secondary">
+                                {assignment.subject}
+                              </Badge>
+                            </div>
+                            {assignment.completed ? (
+                              <CheckCircle className="w-6 h-6 text-green-600" />
+                            ) : (
+                              <Clock className="w-6 h-6 text-orange-600" />
+                            )}
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-gray-600 text-sm mb-4">{assignment.description}</p>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-500">Questions:</span>
+                              <span className="font-medium">{assignment.question_count}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-500">Time Limit:</span>
+                              <span className="font-medium">{assignment.time_limit_minutes} min</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-500">Due Date:</span>
+                              <span className="font-medium">
+                                {new Date(assignment.due_date).toLocaleDateString()}
+                              </span>
+                            </div>
+                            {assignment.completed && assignment.score !== null && (
+                              <div className="flex items-center justify-between pt-2 border-t">
+                                <span className="text-gray-500">Your Score:</span>
+                                <span className="font-medium text-green-600">
+                                  {assignment.score}/{assignment.question_count}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                        <CardContent className="pt-0">
+                          <Button
+                            onClick={() => startQuiz(assignment)}
+                            disabled={assignment.completed}
+                            className="w-full"
+                          >
+                            {assignment.completed ? (
+                              <>
+                                <CheckCircle className="w-4 h-4 mr-2" />
+                                Completed
+                              </>
+                            ) : (
+                              <>
+                                <Play className="w-4 h-4 mr-2" />
+                                Start Assignment
+                              </>
+                            )}
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* Study Groups Tab */}
+              <TabsContent value="study-groups" className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Study Groups</h3>
+                  <div className="flex gap-2">
+                    <Dialog open={showJoinGroup} onOpenChange={setShowJoinGroup}>
+                      <DialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <Hash className="w-4 h-4 mr-2" />
+                          Join Group
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Join Study Group</DialogTitle>
+                          <DialogDescription>
+                            Enter the invite code to join an existing study group.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <form action={joinStudyGroup} className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="inviteCode">Invite Code</Label>
+                            <Input
+                              id="inviteCode"
+                              name="inviteCode"
+                              placeholder="Enter 6-character code"
+                              maxLength={6}
+                              required
+                            />
+                          </div>
+                          <DialogFooter>
+                            <Button type="submit">Join Group</Button>
+                          </DialogFooter>
+                        </form>
+                      </DialogContent>
+                    </Dialog>
+                    
+                    <Dialog open={showCreateGroup} onOpenChange={setShowCreateGroup}>
+                      <DialogTrigger asChild>
+                        <Button size="sm">
+                          <Plus className="w-4 h-4 mr-2" />
+                          Create Group
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Create Study Group</DialogTitle>
+                          <DialogDescription>
+                            Create a new study group to collaborate with friends.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <form action={createStudyGroup} className="space-y-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="groupName">Group Name</Label>
+                            <Input
+                              id="groupName"
+                              name="groupName"
+                              placeholder="Enter group name"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="description">Description</Label>
+                            <Textarea
+                              id="description"
+                              name="description"
+                              placeholder="What will you study together?"
+                              rows={3}
+                            />
+                          </div>
+                          <DialogFooter>
+                            <Button type="submit">Create Group</Button>
+                          </DialogFooter>
+                        </form>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                </div>
+
+                {studyGroups.length === 0 ? (
+                  <Card>
+                    <CardContent className="text-center py-12">
+                      <div className="mx-auto mb-4 p-4 bg-purple-100 rounded-full w-fit">
+                        <Users className="w-8 h-8 text-purple-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold mb-2">No Study Groups Yet</h3>
+                      <p className="text-gray-600 mb-4">Create or join a study group to collaborate with friends.</p>
+                      <div className="flex gap-2 justify-center">
+                        <Button onClick={() => setShowCreateGroup(true)} size="sm">
+                          <Plus className="w-4 h-4 mr-2" />
+                          Create Group
+                        </Button>
+                        <Button onClick={() => setShowJoinGroup(true)} variant="outline" size="sm">
+                          <Hash className="w-4 h-4 mr-2" />
+                          Join Group
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {studyGroups.map((group) => (
+                      <Card key={group.id} className="hover:shadow-md transition-shadow">
+                        <CardHeader>
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <CardTitle className="text-lg mb-1">{group.name}</CardTitle>
+                              <Badge variant="outline" className="text-purple-600">
+                                {group.member_count}/3 members
+                              </Badge>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-gray-600 text-sm mb-4">
+                            {group.description || 'No description'}
+                          </p>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-500">Invite Code:</span>
+                              <code className="font-mono bg-gray-100 px-2 py-1 rounded text-xs">
+                                {group.invite_code}
+                              </code>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-500">Created:</span>
+                              <span className="font-medium">
+                                {new Date(group.created_at).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </div>
+                        </CardContent>
+                        <CardContent className="pt-0">
+                          <Button
+                            onClick={() => {
+                              setSelectedGroup(group)
+                              setShowGroupChat(true)
+                              loadGroupMessages(group.id)
+                            }}
+                            className="w-full"
+                            variant="outline"
+                          >
+                            <MessageSquare className="w-4 h-4 mr-2" />
+                            Open Chat
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+
+                {/* Group Chat Dialog */}
+                <Dialog open={showGroupChat} onOpenChange={setShowGroupChat}>
+                  <DialogContent className="max-w-2xl h-[600px] flex flex-col">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2">
+                        <Users className="w-5 h-5" />
+                        {selectedGroup?.name}
+                      </DialogTitle>
+                      <DialogDescription>
+                        Chat with your study group members
+                      </DialogDescription>
+                    </DialogHeader>
+                    
+                    <div className="flex-1 flex flex-col min-h-0">
+                      <ScrollArea className="flex-1 pr-4">
+                        <div className="space-y-4">
+                          {groupMessages.map((message) => (
+                            <div
+                              key={message.id}
+                              className={`flex ${
+                                message.sender_id === user.id ? 'justify-end' : 'justify-start'
+                              }`}
+                            >
+                              <div
+                                className={`max-w-xs px-4 py-2 rounded-lg ${
+                                  message.sender_id === user.id
+                                    ? 'bg-blue-600 text-white'
+                                    : 'bg-gray-100 text-gray-900'
+                                }`}
+                              >
+                                <div className="text-sm font-medium mb-1">
+                                  {message.sender_name}
+                                </div>
+                                <div>{message.message}</div>
+                                <div className="text-xs opacity-75 mt-1">
+                                  {new Date(message.created_at).toLocaleTimeString()}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </ScrollArea>
+                      
+                      <Separator className="my-4" />
+                      
+                      <div className="space-y-4">
+                        <div className="flex gap-2 flex-wrap">
+                          {emojis.map((emoji) => (
+                            <Button
+                              key={emoji}
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setNewMessage(newMessage + emoji)}
+                              className="text-lg p-2 h-8"
+                            >
+                              {emoji}
+                            </Button>
+                          ))}
+                        </div>
+                        
+                        <div className="flex gap-2">
+                          <Input
+                            value={newMessage}
+                            onChange={(e) => setNewMessage(e.target.value)}
+                            placeholder="Type your message..."
+                            onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+                            className="flex-1"
+                          />
+                          <Button onClick={sendMessage} disabled={!newMessage.trim()}>
+                            <Send className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </TabsContent>
+
+              {/* Ask Doubts Tab */}
+              <TabsContent value="doubts" className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Ask Doubts</h3>
+                  <Dialog open={showSubmitDoubt} onOpenChange={setShowSubmitDoubt}>
+                    <DialogTrigger asChild>
+                      <Button>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Ask Question
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Ask a Question</DialogTitle>
+                        <DialogDescription>
+                          Get help from AI or your teachers by asking a question.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <form action={submitDoubt} className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="subject">Subject</Label>
+                          <Select name="subject" required>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select subject" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {subjects.map((subject) => (
+                                <SelectItem key={subject.id} value={subject.name}>
+                                  {subject.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="question">Your Question</Label>
+                          <Textarea
+                            id="question"
+                            name="question"
+                            placeholder="What would you like to know?"
+                            rows={3}
+                            required
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="context">Additional Context (Optional)</Label>
+                          <Textarea
+                            id="context"
+                            name="context"
+                            placeholder="Any additional details that might help..."
+                            rows={2}
+                          />
+                        </div>
+                        <DialogFooter>
+                          <Button type="submit">Submit Question</Button>
+                        </DialogFooter>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+
+                {doubts.length === 0 ? (
+                  <Card>
+                    <CardContent className="text-center py-12">
+                      <div className="mx-auto mb-4 p-4 bg-orange-100 rounded-full w-fit">
+                        <HelpCircle className="w-8 h-8 text-orange-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold mb-2">No Questions Yet</h3>
+                      <p className="text-gray-600 mb-4">Ask your first question and get help from AI or teachers.</p>
+                      <Button onClick={() => setShowSubmitDoubt(true)}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Ask Question
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="space-y-6">
+                    {doubts.map((doubt) => (
+                      <Card key={doubt.id}>
+                        <CardHeader>
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <CardTitle className="text-lg mb-2">{doubt.question}</CardTitle>
+                              <div className="flex items-center gap-2">
+                                <Badge className={getSubjectColor(doubt.subject)} variant="secondary">
+                                  {doubt.subject}
+                                </Badge>
+                                <Badge variant="outline" className="text-xs">
+                                  {new Date(doubt.created_at).toLocaleDateString()}
+                                </Badge>
+                              </div>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        {doubt.context && (
+                          <CardContent className="pt-0">
+                            <p className="text-gray-600 text-sm">
+                              <span className="font-medium">Context:</span> {doubt.context}
+                            </p>
+                          </CardContent>
+                        )}
+                        {doubt.ai_response && (
+                          <CardContent className="pt-0">
+                            <div className="bg-blue-50 p-4 rounded-lg">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Brain className="w-4 h-4 text-blue-600" />
+                                <span className="text-sm font-medium text-blue-800">AI Response</span>
+                              </div>
+                              <p className="text-sm text-blue-700">{doubt.ai_response}</p>
+                            </div>
+                          </CardContent>
+                        )}
+                        {doubt.teacher_response && (
+                          <CardContent className="pt-0">
+                            <div className="bg-green-50 p-4 rounded-lg">
+                              <div className="flex items-center gap-2 mb-2">
+                                <User className="w-4 h-4 text-green-600" />
+                                <span className="text-sm font-medium text-green-800">Teacher Response</span>
+                              </div>
+                              <p className="text-sm text-green-700">{doubt.teacher_response}</p>
+                            </div>
+                          </CardContent>
+                        )}
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
+
+              {/* Progress Tab */}
+              <TabsContent value="progress" className="space-y-6">
+                <h3 className="text-lg font-semibold">Your Progress</h3>
+
+                {!progress ? (
+                  <Card>
+                    <CardContent className="text-center py-12">
+                      <div className="mx-auto mb-4 p-4 bg-gray-100 rounded-full w-fit">
+                        <TrendingUp className="w-8 h-8 text-gray-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold mb-2">No Progress Data</h3>
+                      <p className="text-gray-600">Complete some assignments to see your progress.</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {/* Overall Stats */}
+                    <Card>
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-gray-600">Assignments</p>
+                            <p className="text-2xl font-bold">{progress.total_assignments}</p>
+                          </div>
+                          <BookOpen className="w-8 h-8 text-blue-600" />
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-gray-600">Completed</p>
+                            <p className="text-2xl font-bold">{progress.completed_assignments}</p>
+                          </div>
+                          <CheckCircle className="w-8 h-8 text-green-600" />
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-gray-600">Avg Score</p>
+                            <p className="text-2xl font-bold">{Math.round(progress.average_score)}%</p>
+                          </div>
+                          <Target className="w-8 h-8 text-purple-600" />
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardContent className="p-6">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm text-gray-600">Questions Asked</p>
+                            <p className="text-2xl font-bold">{progress.total_doubts}</p>
+                          </div>
+                          <HelpCircle className="w-8 h-8 text-orange-600" />
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Subject Performance */}
+                    <Card className="col-span-full md:col-span-2">
+                      <CardHeader>
+                        <CardTitle>Subject Performance</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          {progress.subject_progress?.map((subject) => (
+                            <div key={subject.subject} className="space-y-2">
+                              <div className="flex justify-between items-center">
+                                <span className="font-medium">{subject.subject}</span>
+                                <span className="text-sm text-gray-600">
+                                  {subject.completed}/{subject.total} completed
+                                </span>
+                              </div>
+                              <Progress 
+                                value={(subject.completed / subject.total) * 100} 
+                                className="h-2"
+                              />
+                              <div className="flex justify-between text-xs text-gray-500">
+                                <span>Avg: {Math.round(subject.average_score)}%</span>
+                                <span>{Math.round((subject.completed / subject.total) * 100)}% complete</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {/* Recent Activity */}
+                    <Card className="col-span-full md:col-span-2">
+                      <CardHeader>
+                        <CardTitle>Recent Activity</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          {progress.recent_attempts?.map((attempt) => (
+                            <div key={attempt.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                              <div>
+                                <p className="font-medium">{attempt.assignment_title}</p>
+                                <p className="text-sm text-gray-600">{attempt.subject}</p>
+                                <p className="text-xs text-gray-500">
+                                  {new Date(attempt.completed_at).toLocaleDateString()}
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge 
+                                  variant={attempt.score >= attempt.total_questions * 0.8 ? 'default' : 'secondary'}
+                                  className={attempt.score >= attempt.total_questions * 0.8 ? 'bg-green-600' : ''}
+                                >
+                                  {Math.round((attempt.score / attempt.total_questions) * 100)}%
+                                </Badge>
+                                {attempt.score >= attempt.total_questions * 0.8 && (
+                                  <Award className="w-4 h-4 text-yellow-600" />
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          )}
+        </main>
+      </div>
+    )
+  }
+
+  // Non-student roles show placeholder
   if (user && profile) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -415,7 +1630,7 @@ export default function App() {
                     Stay tuned for updates!
                   </p>
                   <Badge variant="outline" className="text-blue-600 border-blue-200">
-                    Foundation Phase Complete ✓
+                    Student Phase Complete ✓
                   </Badge>
                 </div>
               </CardContent>
