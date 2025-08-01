@@ -2173,6 +2173,215 @@ export default function App() {
                   </div>
                 )}
               </TabsContent>
+
+              {/* Assignments Tab */}
+              <TabsContent value="assignments" className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Assignment & Quiz Creation</h3>
+                  <Dialog open={showCreateAssignment} onOpenChange={setShowCreateAssignment}>
+                    <DialogTrigger asChild>
+                      <Button>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Create Assignment
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl">
+                      <DialogHeader>
+                        <DialogTitle>Create AI-Generated Assignment</DialogTitle>
+                        <DialogDescription>
+                          Create engaging quizzes with AI-generated questions tailored to your requirements.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <form action={createAssignment} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="title">Assignment Title</Label>
+                            <Input
+                              id="title"
+                              name="title"
+                              placeholder="e.g., Photosynthesis Quiz"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="subject">Subject</Label>
+                            <Select name="subject" required>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select subject" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {subjects.map((subject) => (
+                                  <SelectItem key={subject.id} value={subject.id}>
+                                    {subject.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="description">Description</Label>
+                          <Textarea
+                            id="description"
+                            name="description"
+                            placeholder="Brief description of the assignment..."
+                            rows={3}
+                          />
+                        </div>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="difficulty">Difficulty</Label>
+                            <Select name="difficulty" defaultValue="medium">
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="easy">Easy</SelectItem>
+                                <SelectItem value="medium">Medium</SelectItem>
+                                <SelectItem value="hard">Hard</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="questionCount">Questions</Label>
+                            <Input
+                              id="questionCount"
+                              name="questionCount"
+                              type="number"
+                              defaultValue={10}
+                              min={5}
+                              max={50}
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="timeLimit">Time Limit (min)</Label>
+                            <Input
+                              id="timeLimit"
+                              name="timeLimit"
+                              type="number"
+                              defaultValue={30}
+                              min={10}
+                              max={180}
+                              required
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="dueDate">Due Date</Label>
+                          <Input
+                            id="dueDate"
+                            name="dueDate"
+                            type="date"
+                            min={new Date().toISOString().split('T')[0]}
+                            required
+                          />
+                        </div>
+                        <DialogFooter>
+                          <Button type="submit">Create Assignment</Button>
+                        </DialogFooter>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+
+                {teacherAssignments.length === 0 ? (
+                  <Card>
+                    <CardContent className="text-center py-12">
+                      <div className="mx-auto mb-4 p-4 bg-green-100 rounded-full w-fit">
+                        <BookOpen className="w-8 h-8 text-green-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold mb-2">No Assignments Yet</h3>
+                      <p className="text-gray-600 mb-4">Create your first AI-generated assignment to engage your students.</p>
+                      <Button onClick={() => setShowCreateAssignment(true)}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Create Assignment
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {teacherAssignments.map((assignment) => (
+                      <Card key={assignment.id} className="hover:shadow-md transition-shadow">
+                        <CardHeader>
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <CardTitle className="text-lg mb-1">{assignment.title}</CardTitle>
+                              <Badge className={getSubjectColor(assignment.subject)} variant="secondary">
+                                {assignment.subject}
+                              </Badge>
+                            </div>
+                            <Badge 
+                              variant={assignment.status === 'published' ? 'default' : 'secondary'}
+                              className={assignment.status === 'published' ? 'bg-green-600' : ''}
+                            >
+                              {assignment.status}
+                            </Badge>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <p className="text-gray-600 text-sm mb-4 line-clamp-2">{assignment.description}</p>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-500">Questions:</span>
+                              <span className="font-medium">{assignment.question_count}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-500">Time Limit:</span>
+                              <span className="font-medium">{assignment.time_limit_minutes} min</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-500">Difficulty:</span>
+                              <Badge variant="outline" className={
+                                assignment.difficulty === 'easy' ? 'text-green-600 border-green-200' :
+                                assignment.difficulty === 'hard' ? 'text-red-600 border-red-200' :
+                                'text-orange-600 border-orange-200'
+                              }>
+                                {assignment.difficulty}
+                              </Badge>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-500">Due Date:</span>
+                              <span className="font-medium">
+                                {new Date(assignment.due_date).toLocaleDateString()}
+                              </span>
+                            </div>
+                            {assignment.completion_stats && (
+                              <div className="flex items-center justify-between pt-2 border-t">
+                                <span className="text-gray-500">Completed:</span>
+                                <span className="font-medium text-blue-600">
+                                  {assignment.completion_stats.completed}/{assignment.completion_stats.total} students
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                        <CardContent className="pt-0">
+                          <div className="flex gap-2">
+                            {assignment.status === 'draft' ? (
+                              <Button
+                                onClick={() => publishAssignment(assignment.id)}
+                                className="flex-1"
+                              >
+                                <CheckCircle className="w-4 h-4 mr-2" />
+                                Publish
+                              </Button>
+                            ) : (
+                              <Button variant="outline" className="flex-1">
+                                <BookOpen className="w-4 h-4 mr-2" />
+                                View Results
+                              </Button>
+                            )}
+                            <Button variant="outline" size="icon">
+                              <Settings className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
               
               <Button
                 variant="ghost"
