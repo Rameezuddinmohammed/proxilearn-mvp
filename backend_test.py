@@ -46,19 +46,20 @@ class ProxilearnStudentPhaseAPITester:
         if details and not success:
             print(f"   Details: {details}")
 
-    def make_request(self, method, endpoint, data=None, timeout=10):
+    def make_request(self, method, endpoint, data=None, timeout=5):
         """Make HTTP request with error handling"""
         url = f"{API_BASE_URL}{endpoint}"
         
         try:
+            # Use requests directly instead of session to avoid issues
             if method == 'GET':
-                response = self.session.get(url, timeout=timeout)
+                response = requests.get(url, timeout=timeout, headers={'Content-Type': 'application/json'})
             elif method == 'POST':
-                response = self.session.post(url, json=data, timeout=timeout)
+                response = requests.post(url, json=data, timeout=timeout, headers={'Content-Type': 'application/json'})
             elif method == 'PUT':
-                response = self.session.put(url, json=data, timeout=timeout)
+                response = requests.put(url, json=data, timeout=timeout, headers={'Content-Type': 'application/json'})
             elif method == 'DELETE':
-                response = self.session.delete(url, timeout=timeout)
+                response = requests.delete(url, timeout=timeout, headers={'Content-Type': 'application/json'})
             
             return response
         except requests.exceptions.Timeout:
