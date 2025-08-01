@@ -11,8 +11,8 @@ import sys
 from datetime import datetime
 import uuid
 
-# Configuration - Using external URL from environment
-BASE_URL = "https://d30b8283-efcd-425e-942c-8448973cddb8.preview.emergentagent.com"
+# Configuration - Using localhost since external URL has connectivity issues from container
+BASE_URL = "http://localhost:3000"
 API_BASE_URL = f"{BASE_URL}/api"
 TIMEOUT = 30
 
