@@ -1,4 +1,5 @@
 import './globals.css'
+import { Toaster } from 'sonner'
 
 export const metadata = {
   title: 'Proxilearn - Educational Platform',
@@ -10,6 +11,7 @@ export default function RootLayout({ children }) {
     <html lang="en">
       <body className="min-h-screen bg-background font-sans antialiased">
         {children}
+        <Toaster position="top-right" />
       </body>
     </html>
   )
