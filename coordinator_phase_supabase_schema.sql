@@ -493,10 +493,11 @@ BEGIN
     FOR student_record IN (
         SELECT up.id, up.grade_level, up.section, up.school_id
         FROM public.user_profiles up
-        WHERE up.role = 'student' AND up.is_active = true
+        WHERE up.role = 'student' AND COALESCE(up.is_active, true) = true
     ) LOOP
         
         -- Find the coordinator for this student
+        -- First try exact grade and section match
         SELECT * INTO coordinator_record
         FROM public.coordinator_assignments ca
         WHERE ca.grade_level = student_record.grade_level
@@ -504,6 +505,17 @@ BEGIN
         AND ca.school_id = student_record.school_id
         AND ca.is_active = true
         LIMIT 1;
+        
+        -- If no coordinator found with grade/section, try school-wide coordinator
+        IF coordinator_record.id IS NULL THEN
+            SELECT * INTO coordinator_record
+            FROM public.coordinator_assignments ca
+            WHERE ca.section IS NULL 
+            AND ca.grade_level IS NULL
+            AND ca.school_id = student_record.school_id
+            AND ca.is_active = true
+            LIMIT 1;
+        END IF;
         
         IF coordinator_record.id IS NOT NULL THEN
             support_needed := ARRAY[]::TEXT[];
