@@ -1991,6 +1991,188 @@ export default function App() {
                   </Card>
                 </div>
               </TabsContent>
+
+              {/* AI Lesson Plans Tab */}
+              <TabsContent value="lessons" className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">AI Lesson Planner</h3>
+                  <Dialog open={showCreateLessonPlan} onOpenChange={setShowCreateLessonPlan}>
+                    <DialogTrigger asChild>
+                      <Button>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Create Lesson Plan
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl">
+                      <DialogHeader>
+                        <DialogTitle>Create AI-Powered Lesson Plan</DialogTitle>
+                        <DialogDescription>
+                          Let AI help you create comprehensive lesson plans with learning objectives, activities, and resources.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <form action={createLessonPlan} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="title">Lesson Title</Label>
+                            <Input
+                              id="title"
+                              name="title"
+                              placeholder="e.g., Introduction to Photosynthesis"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="subject">Subject</Label>
+                            <Select name="subject" required>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select subject" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {subjects.map((subject) => (
+                                  <SelectItem key={subject.id} value={subject.id}>
+                                    {subject.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="grade">Grade Level</Label>
+                            <Input
+                              id="grade"
+                              name="grade"
+                              placeholder="e.g., Grade 8"
+                              required
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="duration">Duration (minutes)</Label>
+                            <Input
+                              id="duration"
+                              name="duration"
+                              type="number"
+                              defaultValue={40}
+                              min={15}
+                              max={120}
+                              required
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="objectives">Learning Objectives (one per line)</Label>
+                          <Textarea
+                            id="objectives"
+                            name="objectives"
+                            placeholder="Students will be able to:&#10;- Explain the process of photosynthesis&#10;- Identify factors affecting photosynthesis"
+                            rows={4}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="ai_prompt">AI Prompt (Optional)</Label>
+                          <Textarea
+                            id="ai_prompt"
+                            name="ai_prompt"
+                            placeholder="Describe what you want the AI to focus on... e.g., 'Create an interactive lesson with hands-on experiments and real-world examples'"
+                            rows={3}
+                          />
+                          <p className="text-sm text-gray-500">
+                            Let AI generate detailed content including key concepts, discussion points, activities, and resources.
+                          </p>
+                        </div>
+                        <DialogFooter>
+                          <Button type="submit">Create Lesson Plan</Button>
+                        </DialogFooter>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+
+                {lessonPlans.length === 0 ? (
+                  <Card>
+                    <CardContent className="text-center py-12">
+                      <div className="mx-auto mb-4 p-4 bg-blue-100 rounded-full w-fit">
+                        <Brain className="w-8 h-8 text-blue-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold mb-2">No Lesson Plans Yet</h3>
+                      <p className="text-gray-600 mb-4">Create your first AI-powered lesson plan to get started.</p>
+                      <Button onClick={() => setShowCreateLessonPlan(true)}>
+                        <Plus className="w-4 h-4 mr-2" />
+                        Create Lesson Plan
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {lessonPlans.map((plan) => (
+                      <Card key={plan.id} className="hover:shadow-md transition-shadow">
+                        <CardHeader>
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <CardTitle className="text-lg mb-1">{plan.title}</CardTitle>
+                              <Badge className={getSubjectColor(plan.subject)} variant="secondary">
+                                {plan.subject}
+                              </Badge>
+                            </div>
+                            {plan.ai_generated && (
+                              <Badge variant="outline" className="text-purple-600 border-purple-200">
+                                <Brain className="w-3 h-3 mr-1" />
+                                AI
+                              </Badge>
+                            )}
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2 text-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-500">Grade:</span>
+                              <span className="font-medium">{plan.grade_level}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-500">Duration:</span>
+                              <span className="font-medium">{plan.duration_minutes} min</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-500">Status:</span>
+                              <Badge 
+                                variant={plan.status === 'active' ? 'default' : 'secondary'}
+                                className={plan.status === 'active' ? 'bg-green-600' : ''}
+                              >
+                                {plan.status}
+                              </Badge>
+                            </div>
+                          </div>
+                          {plan.learning_objectives && plan.learning_objectives.length > 0 && (
+                            <div className="mt-4">
+                              <p className="text-sm font-medium text-gray-700 mb-2">Objectives:</p>
+                              <ul className="text-sm text-gray-600 space-y-1">
+                                {plan.learning_objectives.slice(0, 2).map((objective, index) => (
+                                  <li key={index} className="flex items-start gap-2">
+                                    <span className="text-blue-600 mt-0.5">•</span>
+                                    <span className="line-clamp-2">{objective}</span>
+                                  </li>
+                                ))}
+                                {plan.learning_objectives.length > 2 && (
+                                  <li className="text-gray-500">
+                                    +{plan.learning_objectives.length - 2} more...
+                                  </li>
+                                )}
+                              </ul>
+                            </div>
+                          )}
+                        </CardContent>
+                        <CardContent className="pt-0">
+                          <Button variant="outline" className="w-full">
+                            <BookOpen className="w-4 h-4 mr-2" />
+                            View Details
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
+              </TabsContent>
               
               <Button
                 variant="ghost"
