@@ -827,6 +827,150 @@ export default function App() {
     }
   }
 
+  // Coordinator Action Functions
+  const sendBulkCommunication = async (formData) => {
+    try {
+      const response = await fetch('/api/coordinator/communications', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          type: formData.get('type'),
+          recipients: formData.get('recipients'),
+          priority: formData.get('priority'),
+          title: formData.get('title'),
+          message: formData.get('message'),
+          scheduled_at: formData.get('scheduledAt') || null
+        })
+      })
+      const data = await response.json()
+      
+      if (response.ok) {
+        toast.success('Communication sent successfully!')
+        setShowBulkCommunication(false)
+        setCommunicationForm({ type: 'announcement', recipients: 'all_students', priority: 'medium', message: '', title: '' })
+        await loadCoordinatorCommunications()
+      } else {
+        toast.error(data.error || 'Failed to send communication')
+      }
+    } catch (error) {
+      console.error('Error sending communication:', error)
+      toast.error('Failed to send communication')
+    }
+  }
+
+  const addIntervention = async (formData) => {
+    try {
+      const response = await fetch('/api/coordinator/interventions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          student_id: formData.get('student_id'),
+          type: formData.get('type'),
+          description: formData.get('description'),
+          action_taken: formData.get('action_taken'),
+          follow_up_required: formData.get('follow_up_required') === 'true',
+          participants: formData.get('participants')?.split(',').map(p => p.trim()).filter(p => p) || []
+        })
+      })
+      const data = await response.json()
+      
+      if (response.ok) {
+        toast.success('Intervention logged successfully!')
+        setShowAddIntervention(false)
+        setInterventionForm({ student_id: '', type: 'academic_support', description: '', action_taken: '', follow_up_required: true })
+        await loadInterventions()
+      } else {
+        toast.error(data.error || 'Failed to log intervention')
+      }
+    } catch (error) {
+      console.error('Error adding intervention:', error)
+      toast.error('Failed to log intervention')
+    }
+  }
+
+  const addStudentToSupportCategory = async (studentId, supportType, priority) => {
+    try {
+      const response = await fetch('/api/coordinator/support-categories', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          student_id: studentId,
+          support_type: supportType,
+          priority_level: priority,
+          notes: `Added by coordinator on ${new Date().toLocaleDateString()}`
+        })
+      })
+      const data = await response.json()
+      
+      if (response.ok) {
+        toast.success('Student added to support category!')
+        await loadSupportCategories()
+      } else {
+        toast.error(data.error || 'Failed to add student to support category')
+      }
+    } catch (error) {
+      console.error('Error adding student to support category:', error)
+      toast.error('Failed to add student to support category')
+    }
+  }
+
+  const runAIAnalysis = async () => {
+    try {
+      const response = await fetch('/api/coordinator/run-ai-analysis', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      const data = await response.json()
+      
+      if (response.ok) {
+        toast.success('AI analysis completed! Check support categories and alerts for updates.')
+        setShowRunAIAnalysis(false)
+        await Promise.all([loadSupportCategories(), loadCoordinatorAlerts()])
+      } else {
+        toast.error(data.error || 'Failed to run AI analysis')
+      }
+    } catch (error) {
+      console.error('Error running AI analysis:', error)
+      toast.error('Failed to run AI analysis')
+    }
+  }
+
+  const updateAlertStatus = async (alertId, status) => {
+    try {
+      const response = await fetch(`/api/coordinator/alerts/${alertId}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ status })
+      })
+      const data = await response.json()
+      
+      if (response.ok) {
+        toast.success('Alert status updated!')
+        await loadCoordinatorAlerts()
+      } else {
+        toast.error(data.error || 'Failed to update alert status')
+      }
+    } catch (error) {
+      console.error('Error updating alert status:', error)
+      toast.error('Failed to update alert status')
+    }
+  }
+
   const handleSignUp = async (formData) => {
     try {
       const { data, error } = await supabase.auth.signUp({
