@@ -2579,8 +2579,245 @@ export default function App() {
                   </div>
                 )}
               </TabsContent>
-              
-              <Button
+
+              {/* Analytics Tab */}
+              <TabsContent value="analytics" className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold">Analytics & Performance Insights</h3>
+                  <div className="flex gap-2">
+                    <Select defaultValue="week">
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Time period" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="week">This Week</SelectItem>
+                        <SelectItem value="month">This Month</SelectItem>
+                        <SelectItem value="quarter">This Quarter</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Button variant="outline">
+                      <Settings className="w-4 h-4 mr-2" />
+                      Generate Report
+                    </Button>
+                  </div>
+                </div>
+
+                {!teacherAnalytics ? (
+                  <Card>
+                    <CardContent className="text-center py-12">
+                      <div className="mx-auto mb-4 p-4 bg-indigo-100 rounded-full w-fit">
+                        <TrendingUp className="w-8 h-8 text-indigo-600" />
+                      </div>
+                      <h3 className="text-lg font-semibold mb-2">No Analytics Data</h3>
+                      <p className="text-gray-600">Analytics will appear once you have assignments and student activity.</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <>
+                    {/* Performance Overview */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                      <Card>
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-gray-600">Avg Performance</p>
+                              <p className="text-2xl font-bold">{teacherAnalytics.overall_performance || 0}%</p>
+                            </div>
+                            <TrendingUp className="w-8 h-8 text-green-600" />
+                          </div>
+                          <div className="mt-2">
+                            <Progress value={teacherAnalytics.overall_performance || 0} className="h-2" />
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-gray-600">Completion Rate</p>
+                              <p className="text-2xl font-bold">{teacherAnalytics.completion_rate || 0}%</p>
+                            </div>
+                            <CheckCircle className="w-8 h-8 text-blue-600" />
+                          </div>
+                          <div className="mt-2">
+                            <Progress value={teacherAnalytics.completion_rate || 0} className="h-2" />
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-gray-600">Active Students</p>
+                              <p className="text-2xl font-bold">{teacherAnalytics.active_students || 0}</p>
+                            </div>
+                            <Users className="w-8 h-8 text-purple-600" />
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardContent className="p-6">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm text-gray-600">Improvement</p>
+                              <p className="text-2xl font-bold text-green-600">+{teacherAnalytics.improvement_rate || 0}%</p>
+                            </div>
+                            <TrendingUp className="w-8 h-8 text-green-600" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Assignment Performance */}
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <BookOpen className="w-5 h-5" />
+                            Assignment Performance
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {teacherAnalytics.assignment_performance?.length > 0 ? (
+                            <div className="space-y-4">
+                              {teacherAnalytics.assignment_performance.map((assignment, index) => (
+                                <div key={index} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                                  <div>
+                                    <p className="font-medium">{assignment.title}</p>
+                                    <p className="text-sm text-gray-600">{assignment.subject}</p>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="font-medium">{assignment.avg_score}%</p>
+                                    <p className="text-sm text-gray-500">
+                                      {assignment.completed}/{assignment.total} completed
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-gray-500 text-center py-8">No assignment data available</p>
+                          )}
+                        </CardContent>
+                      </Card>
+
+                      {/* Grade Distribution */}
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <Award className="w-5 h-5" />
+                            Grade Distribution
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {teacherAnalytics.grade_distribution ? (
+                            <div className="space-y-4">
+                              {Object.entries(teacherAnalytics.grade_distribution).map(([grade, count]) => (
+                                <div key={grade} className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <Badge 
+                                      variant={grade.startsWith('A') ? 'default' : 'secondary'}
+                                      className={grade.startsWith('A') ? 'bg-green-600' : ''}
+                                    >
+                                      {grade}
+                                    </Badge>
+                                    <span className="font-medium">{count} students</span>
+                                  </div>
+                                  <div className="flex-1 mx-4">
+                                    <Progress 
+                                      value={(count / teacherAnalytics.total_graded) * 100} 
+                                      className="h-2" 
+                                    />
+                                  </div>
+                                  <span className="text-sm text-gray-500">
+                                    {Math.round((count / teacherAnalytics.total_graded) * 100)}%
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-gray-500 text-center py-8">No grade data available</p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* AI-Generated Insights */}
+                    {teacherAnalytics.insights && teacherAnalytics.insights.length > 0 && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <Brain className="w-5 h-5" />
+                            AI-Generated Insights & Recommendations
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-4">
+                            {teacherAnalytics.insights.map((insight, index) => (
+                              <div key={index} className="p-4 bg-blue-50 rounded-lg border-l-4 border-blue-500">
+                                <div className="flex items-start gap-3">
+                                  <Brain className="w-5 h-5 text-blue-600 mt-0.5" />
+                                  <div>
+                                    <p className="font-medium text-blue-900">{insight.title}</p>
+                                    <p className="text-blue-800 mt-1">{insight.description}</p>
+                                    {insight.action && (
+                                      <div className="mt-3">
+                                        <Button variant="outline" size="sm" className="text-blue-700 border-blue-300">
+                                          {insight.action}
+                                        </Button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* Subject Performance */}
+                    {teacherAnalytics.subject_performance && (
+                      <Card>
+                        <CardHeader>
+                          <CardTitle>Subject Performance Overview</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {Object.entries(teacherAnalytics.subject_performance).map(([subject, data]) => (
+                              <div key={subject} className="p-4 border rounded-lg">
+                                <div className="flex items-center justify-between mb-3">
+                                  <Badge className={getSubjectColor(subject)} variant="secondary">
+                                    {subject}
+                                  </Badge>
+                                  <span className="text-lg font-bold">{data.avg_score}%</span>
+                                </div>
+                                <Progress value={data.avg_score} className="h-2 mb-2" />
+                                <div className="text-sm text-gray-600">
+                                  <p>{data.assignments} assignments</p>
+                                  <p>{data.students} students</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </>
+                )}
+              </TabsContent>
+            </Tabs>
+          )}
+        </main>
+      </div>
+    )
+  }
+
+  // Non-teacher roles show placeholder  
+  if (user && profile) {
                 variant="ghost"
                 size="sm"
                 onClick={handleSignOut}
