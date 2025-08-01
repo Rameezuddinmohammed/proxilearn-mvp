@@ -79,6 +79,29 @@ export default function App() {
   const [showSubmitDoubt, setShowSubmitDoubt] = useState(false)
   const [doubtForm, setDoubtForm] = useState({ subject: '', question: '', context: '' })
   
+  // Coordinator Dashboard State
+  const [coordinatorActiveTab, setCoordinatorActiveTab] = useState('overview')
+  const [coordinatorDashboard, setCoordinatorDashboard] = useState(null)
+  const [supportCategories, setSupportCategories] = useState([])
+  const [coordinatorAnalytics, setCoordinatorAnalytics] = useState(null)
+  const [coordinatorCommunications, setCoordinatorCommunications] = useState([])
+  const [interventions, setInterventions] = useState([])
+  const [coordinatorAlerts, setCoordinatorAlerts] = useState([])
+  const [selectedStudent, setSelectedStudent] = useState(null)
+  const [studentProfile, setStudentProfile] = useState(null)
+  
+  // Coordinator UI State
+  const [showStudentProfile, setShowStudentProfile] = useState(false)
+  const [showBulkCommunication, setShowBulkCommunication] = useState(false)
+  const [showAddIntervention, setShowAddIntervention] = useState(false)
+  const [showRunAIAnalysis, setShowRunAIAnalysis] = useState(false)
+  const [communicationForm, setCommunicationForm] = useState({
+    type: 'announcement', recipients: 'all_students', priority: 'medium', message: '', title: ''
+  })
+  const [interventionForm, setInterventionForm] = useState({
+    student_id: '', type: 'academic_support', description: '', action_taken: '', follow_up_required: true
+  })
+  
   const supabase = createClient()
 
   // Authentication state management (same as before)
