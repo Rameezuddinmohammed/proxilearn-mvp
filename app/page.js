@@ -577,6 +577,99 @@ export default function App() {
     }
   }
 
+  // Teacher Action Functions
+  const createLessonPlan = async (formData) => {
+    try {
+      const response = await fetch('/api/teacher/lesson-plans', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          title: formData.get('title'),
+          subject_id: formData.get('subject'),
+          grade_level: formData.get('grade'),
+          duration_minutes: parseInt(formData.get('duration')),
+          learning_objectives: formData.get('objectives').split('\n').filter(obj => obj.trim()),
+          ai_prompt: formData.get('ai_prompt'),
+          ai_generated: !!formData.get('ai_prompt')
+        })
+      })
+      const data = await response.json()
+      
+      if (response.ok) {
+        toast.success('Lesson plan created successfully!')
+        setShowCreateLessonPlan(false)
+        setLessonPlanForm({ title: '', subject: '', grade: '', duration: 40, objectives: '', ai_prompt: '' })
+        await loadLessonPlans()
+      } else {
+        toast.error(data.error || 'Failed to create lesson plan')
+      }
+    } catch (error) {
+      console.error('Error creating lesson plan:', error)
+      toast.error('Failed to create lesson plan')
+    }
+  }
+
+  const createAssignment = async (formData) => {
+    try {
+      const response = await fetch('/api/teacher/assignments', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          title: formData.get('title'),
+          subject_id: formData.get('subject'),
+          description: formData.get('description'),
+          difficulty: formData.get('difficulty'),
+          question_count: parseInt(formData.get('questionCount')),
+          time_limit_minutes: parseInt(formData.get('timeLimit')),
+          due_date: formData.get('dueDate'),
+          ai_generated: true
+        })
+      })
+      const data = await response.json()
+      
+      if (response.ok) {
+        toast.success('Assignment created successfully!')
+        setShowCreateAssignment(false)
+        setAssignmentForm({ title: '', subject: '', description: '', difficulty: 'medium', questionCount: 10, timeLimit: 30 })
+        await loadTeacherAssignments()
+      } else {
+        toast.error(data.error || 'Failed to create assignment')
+      }
+    } catch (error) {
+      console.error('Error creating assignment:', error)
+      toast.error('Failed to create assignment')
+    }
+  }
+
+  const publishAssignment = async (assignmentId) => {
+    try {
+      const response = await fetch(`/api/teacher/assignments/${assignmentId}/publish`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      })
+      const data = await response.json()
+      
+      if (response.ok) {
+        toast.success('Assignment published successfully!')
+        await loadTeacherAssignments()
+      } else {
+        toast.error(data.error || 'Failed to publish assignment')
+      }
+    } catch (error) {
+      console.error('Error publishing assignment:', error)
+      toast.error('Failed to publish assignment')
+    }
+  }
+
   const handleSignUp = async (formData) => {
     try {
       const { data, error } = await supabase.auth.signUp({
