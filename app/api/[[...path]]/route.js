@@ -1279,6 +1279,978 @@ async function handleRoute(request, { params }) {
       }
     }
 
+    // ================================================================================================
+    // TEACHER PHASE APIs
+    // ================================================================================================
+
+    // GET /api/teacher/dashboard - Teacher dashboard overview
+    if (route === '/teacher/dashboard' && method === 'GET') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        
+        // Verify user is a teacher
+        const { data: profile, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single()
+
+        if (profileError || profile.role !== 'teacher') {
+          return handleCORS(NextResponse.json({
+            error: "Access denied. Teacher role required."
+          }, { status: 403 }))
+        }
+
+        // Get teacher's classes and student counts
+        const { data: classes, error: classesError } = await supabase
+          .from('teacher_classes')
+          .select(`
+            id, class_name, grade_level, section, student_count,
+            subjects!inner(id, name)
+          `)
+          .eq('teacher_id', user.id)
+          .eq('is_active', true)
+
+        // Get recent assignments
+        const { data: recentAssignments, error: assignmentsError } = await supabase
+          .from('assignments')
+          .select(`
+            id, title, assignment_type, created_at, due_date,
+            subjects!inner(name),
+            assignment_attempts(id, status)
+          `)
+          .eq('teacher_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(5)
+
+        // Get lesson plans count
+        const { count: lessonPlansCount, error: lpCountError } = await supabase
+          .from('lesson_plans')
+          .select('*', { count: 'exact', head: true })
+          .eq('teacher_id', user.id)
+          .eq('status', 'active')
+
+        // Get unread messages count
+        const { count: unreadMessages, error: messagesError } = await supabase
+          .from('teacher_messages')
+          .select('*', { count: 'exact', head: true })
+          .eq('recipient_id', user.id)
+          .eq('is_read', false)
+
+        return handleCORS(NextResponse.json({
+          classes: classes || [],
+          recentAssignments: recentAssignments || [],
+          stats: {
+            totalClasses: classes?.length || 0,
+            totalStudents: classes?.reduce((sum, cls) => sum + cls.student_count, 0) || 0,
+            activeLessonPlans: lessonPlansCount || 0,
+            unreadMessages: unreadMessages || 0,
+            activeAssignments: recentAssignments?.filter(a => 
+              new Date(a.due_date) > new Date()
+            ).length || 0
+          }
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // POST /api/teacher/lesson-plans - Create lesson plan with AI
+    if (route === '/teacher/lesson-plans' && method === 'POST') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        const body = await request.json()
+        
+        const { 
+          title, description, subjectId, gradeLevel, duration = 40,
+          topic, learningObjectives, useAI = false, aiPrompt 
+        } = body
+        
+        if (!title || !subjectId || !gradeLevel) {
+          return handleCORS(NextResponse.json({
+            error: "Missing required fields: title, subjectId, gradeLevel"
+          }, { status: 400 }))
+        }
+
+        let aiGeneratedContent = null
+        
+        // Generate AI lesson plan if requested
+        if (useAI && (topic || aiPrompt)) {
+          try {
+            const { data: subject, error: subjectError } = await supabase
+              .from('subjects')
+              .select('name')
+              .eq('id', subjectId)
+              .single()
+
+            if (!subjectError && subject) {
+              aiGeneratedContent = await generateLessonPlan(
+                topic || title, 
+                subject.name, 
+                gradeLevel, 
+                duration,
+                aiPrompt
+              )
+            }
+          } catch (aiError) {
+            console.error('AI lesson plan generation failed:', aiError)
+          }
+        }
+
+        // Create lesson plan
+        const lessonPlanData = {
+          teacher_id: user.id,
+          subject_id: subjectId,
+          title,
+          description,
+          grade_level: gradeLevel,
+          duration_minutes: duration,
+          learning_objectives: learningObjectives || [],
+          ai_generated: !!aiGeneratedContent,
+          ai_prompt: aiPrompt,
+          status: 'draft'
+        }
+
+        // Add AI-generated content if available
+        if (aiGeneratedContent) {
+          lessonPlanData.key_concepts = aiGeneratedContent.keyConcepts || []
+          lessonPlanData.discussion_points = aiGeneratedContent.discussionPoints || []
+          lessonPlanData.activities = aiGeneratedContent.activities || []
+          lessonPlanData.resources = aiGeneratedContent.resources || []
+          lessonPlanData.assessment_notes = aiGeneratedContent.assessmentNotes
+          lessonPlanData.homework_suggestions = aiGeneratedContent.homeworkSuggestions
+        }
+
+        const { data: lessonPlan, error } = await supabase
+          .from('lesson_plans')
+          .insert(lessonPlanData)
+          .select()
+          .single()
+
+        if (error) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to create lesson plan",
+            details: error.message
+          }, { status: 500 }))
+        }
+
+        return handleCORS(NextResponse.json({
+          message: "Lesson plan created successfully",
+          lessonPlan,
+          aiGenerated: !!aiGeneratedContent
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // GET /api/teacher/lesson-plans - Get teacher's lesson plans
+    if (route === '/teacher/lesson-plans' && method === 'GET') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        const url = new URL(request.url)
+        const status = url.searchParams.get('status') // draft, active, archived
+        const subjectId = url.searchParams.get('subject_id')
+        
+        let query = supabase
+          .from('lesson_plans')
+          .select(`
+            id, title, description, grade_level, duration_minutes,
+            learning_objectives, key_concepts, discussion_points,
+            activities, resources, ai_generated, status, created_at, updated_at,
+            subjects!inner(id, name)
+          `)
+          .eq('teacher_id', user.id)
+          .order('updated_at', { ascending: false })
+
+        if (status) {
+          query = query.eq('status', status)
+        }
+        
+        if (subjectId) {
+          query = query.eq('subject_id', subjectId)
+        }
+
+        const { data: lessonPlans, error } = await query
+
+        if (error) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to fetch lesson plans",
+            details: error.message
+          }, { status: 500 }))
+        }
+
+        return handleCORS(NextResponse.json({
+          lessonPlans: lessonPlans || [],
+          count: lessonPlans?.length || 0
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // PUT /api/teacher/lesson-plans/{id} - Update lesson plan
+    if (route.match(/^\/teacher\/lesson-plans\/[^\/]+$/) && method === 'PUT') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        const lessonPlanId = route.split('/')[3]
+        const body = await request.json()
+        
+        const updateData = { ...body, updated_at: new Date().toISOString() }
+        delete updateData.id
+        delete updateData.teacher_id
+        delete updateData.created_at
+
+        const { data: lessonPlan, error } = await supabase
+          .from('lesson_plans')
+          .update(updateData)
+          .eq('id', lessonPlanId)
+          .eq('teacher_id', user.id)
+          .select()
+          .single()
+
+        if (error) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to update lesson plan",
+            details: error.message
+          }, { status: 500 }))
+        }
+
+        return handleCORS(NextResponse.json({
+          message: "Lesson plan updated successfully",
+          lessonPlan
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // DELETE /api/teacher/lesson-plans/{id} - Delete lesson plan
+    if (route.match(/^\/teacher\/lesson-plans\/[^\/]+$/) && method === 'DELETE') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        const lessonPlanId = route.split('/')[3]
+
+        const { error } = await supabase
+          .from('lesson_plans')
+          .delete()
+          .eq('id', lessonPlanId)
+          .eq('teacher_id', user.id)
+
+        if (error) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to delete lesson plan",
+            details: error.message
+          }, { status: 500 }))
+        }
+
+        return handleCORS(NextResponse.json({
+          message: "Lesson plan deleted successfully"
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // POST /api/teacher/assignments - Create assignment/quiz
+    if (route === '/teacher/assignments' && method === 'POST') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        const body = await request.json()
+        
+        const { 
+          title, description, subjectId, assignmentType = 'quiz',
+          difficultyLevel = 'medium', totalQuestions, timeLimit,
+          maxAttempts = 3, passingScore = 60, dueDate,
+          useAI = false, topic, questions = []
+        } = body
+        
+        if (!title || !subjectId || !totalQuestions) {
+          return handleCORS(NextResponse.json({
+            error: "Missing required fields: title, subjectId, totalQuestions"
+          }, { status: 400 }))
+        }
+
+        // Create assignment
+        const assignmentData = {
+          title,
+          description,
+          subject_id: subjectId,
+          teacher_id: user.id,
+          assignment_type: assignmentType,
+          difficulty_level: difficultyLevel,
+          total_questions: totalQuestions,
+          time_limit_minutes: timeLimit,
+          max_attempts: maxAttempts,
+          passing_score: passingScore,
+          due_date: dueDate,
+          is_published: false // Start as draft
+        }
+
+        const { data: assignment, error: assignmentError } = await supabase
+          .from('assignments')
+          .insert(assignmentData)
+          .select()
+          .single()
+
+        if (assignmentError) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to create assignment",
+            details: assignmentError.message
+          }, { status: 500 }))
+        }
+
+        let generatedQuestions = []
+
+        // Generate AI questions if requested
+        if (useAI && topic) {
+          try {
+            const { data: subject, error: subjectError } = await supabase
+              .from('subjects')
+              .select('name')
+              .eq('id', subjectId)
+              .single()
+
+            if (!subjectError && subject) {
+              generatedQuestions = await generateQuizQuestions(
+                topic, 
+                difficultyLevel, 
+                totalQuestions, 
+                subject.name
+              )
+            }
+          } catch (aiError) {
+            console.error('AI question generation failed:', aiError)
+          }
+        }
+
+        // Use provided questions or AI-generated questions
+        const questionsToInsert = (questions.length > 0 ? questions : generatedQuestions)
+          .slice(0, totalQuestions)
+          .map((q, index) => ({
+            assignment_id: assignment.id,
+            question_text: q.question,
+            question_type: q.type || 'multiple_choice',
+            options: q.options,
+            correct_answer: q.correct_answer,
+            explanation: q.explanation,
+            points: q.points || 1.0,
+            order_index: index + 1
+          }))
+
+        if (questionsToInsert.length > 0) {
+          const { data: insertedQuestions, error: questionsError } = await supabase
+            .from('assignment_questions')
+            .insert(questionsToInsert)
+            .select()
+
+          if (questionsError) {
+            return handleCORS(NextResponse.json({
+              error: "Failed to create questions",
+              details: questionsError.message
+            }, { status: 500 }))
+          }
+
+          return handleCORS(NextResponse.json({
+            message: "Assignment created successfully",
+            assignment,
+            questions: insertedQuestions,
+            aiGenerated: useAI && topic
+          }))
+        }
+
+        return handleCORS(NextResponse.json({
+          message: "Assignment created successfully (no questions added)",
+          assignment
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // GET /api/teacher/assignments - Get teacher's assignments
+    if (route === '/teacher/assignments' && method === 'GET') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        const url = new URL(request.url)
+        const status = url.searchParams.get('status') // published, draft
+        const subjectId = url.searchParams.get('subject_id')
+        
+        let query = supabase
+          .from('assignments')
+          .select(`
+            id, title, description, assignment_type, difficulty_level,
+            total_questions, time_limit_minutes, max_attempts, passing_score,
+            due_date, is_published, created_at, updated_at,
+            subjects!inner(id, name),
+            assignment_attempts(id, status, student_id)
+          `)
+          .eq('teacher_id', user.id)
+          .order('created_at', { ascending: false })
+
+        if (status === 'published') {
+          query = query.eq('is_published', true)
+        } else if (status === 'draft') {
+          query = query.eq('is_published', false)
+        }
+        
+        if (subjectId) {
+          query = query.eq('subject_id', subjectId)
+        }
+
+        const { data: assignments, error } = await query
+
+        if (error) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to fetch assignments",
+            details: error.message
+          }, { status: 500 }))
+        }
+
+        // Add completion statistics
+        const enrichedAssignments = assignments?.map(assignment => {
+          const attempts = assignment.assignment_attempts || []
+          const uniqueStudents = new Set(attempts.map(a => a.student_id)).size
+          const completedAttempts = attempts.filter(a => a.status === 'completed').length
+          
+          return {
+            ...assignment,
+            stats: {
+              totalAttempts: attempts.length,
+              uniqueStudents,
+              completedAttempts,
+              completionRate: uniqueStudents > 0 ? (completedAttempts / uniqueStudents * 100) : 0
+            }
+          }
+        })
+
+        return handleCORS(NextResponse.json({
+          assignments: enrichedAssignments || [],
+          count: enrichedAssignments?.length || 0
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // PUT /api/teacher/assignments/{id}/publish - Publish assignment
+    if (route.match(/^\/teacher\/assignments\/[^\/]+\/publish$/) && method === 'PUT') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        const assignmentId = route.split('/')[3]
+
+        const { data: assignment, error } = await supabase
+          .from('assignments')
+          .update({ 
+            is_published: true,
+            published_at: new Date().toISOString()
+          })
+          .eq('id', assignmentId)
+          .eq('teacher_id', user.id)
+          .select()
+          .single()
+
+        if (error) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to publish assignment",
+            details: error.message
+          }, { status: 500 }))
+        }
+
+        return handleCORS(NextResponse.json({
+          message: "Assignment published successfully",
+          assignment
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // GET /api/teacher/gradebook - Get teacher's gradebook
+    if (route === '/teacher/gradebook' && method === 'GET') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        const url = new URL(request.url)
+        const assignmentId = url.searchParams.get('assignment_id')
+        const classId = url.searchParams.get('class_id')
+        
+        let query = supabase
+          .from('teacher_gradebook')
+          .select(`
+            id, auto_score, manual_score, final_score, percentage,
+            grade_letter, comments, late_submission, graded_at,
+            user_profiles!teacher_gradebook_student_id_fkey!inner(id, full_name, email),
+            assignments!inner(id, title, assignment_type, total_questions),
+            assignment_attempts!left(id, submitted_at, status)
+          `)
+          .eq('teacher_id', user.id)
+          .order('graded_at', { ascending: false })
+
+        if (assignmentId) {
+          query = query.eq('assignment_id', assignmentId)
+        }
+
+        const { data: grades, error } = await query
+
+        if (error) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to fetch gradebook",
+            details: error.message
+          }, { status: 500 }))
+        }
+
+        // Group by assignment for better organization
+        const groupedGrades = {}
+        grades?.forEach(grade => {
+          const assignmentId = grade.assignments.id
+          if (!groupedGrades[assignmentId]) {
+            groupedGrades[assignmentId] = {
+              assignment: grade.assignments,
+              grades: []
+            }
+          }
+          groupedGrades[assignmentId].grades.push({
+            id: grade.id,
+            student: grade.user_profiles,
+            autoScore: grade.auto_score,
+            manualScore: grade.manual_score,
+            finalScore: grade.final_score,
+            percentage: grade.percentage,
+            gradeLetter: grade.grade_letter,
+            comments: grade.comments,
+            lateSubmission: grade.late_submission,
+            gradedAt: grade.graded_at,
+            submittedAt: grade.assignment_attempts?.submitted_at
+          })
+        })
+
+        return handleCORS(NextResponse.json({
+          gradebook: Object.values(groupedGrades),
+          totalGrades: grades?.length || 0
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // PUT /api/teacher/gradebook/{id} - Update grade with manual override
+    if (route.match(/^\/teacher\/gradebook\/[^\/]+$/) && method === 'PUT') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        const gradeId = route.split('/')[3]
+        const body = await request.json()
+        
+        const { manualScore, comments, gradeLetter } = body
+
+        const updateData = {
+          manual_score: manualScore,
+          final_score: manualScore || undefined, // Use manual score as final if provided
+          comments,
+          grade_letter: gradeLetter,
+          graded_at: new Date().toISOString(),
+          graded_by: user.id
+        }
+
+        // Remove undefined values
+        Object.keys(updateData).forEach(key => {
+          if (updateData[key] === undefined) {
+            delete updateData[key]
+          }
+        })
+
+        const { data: grade, error } = await supabase
+          .from('teacher_gradebook')
+          .update(updateData)
+          .eq('id', gradeId)
+          .eq('teacher_id', user.id)
+          .select()
+          .single()
+
+        if (error) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to update grade",
+            details: error.message
+          }, { status: 500 }))
+        }
+
+        return handleCORS(NextResponse.json({
+          message: "Grade updated successfully",
+          grade
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // GET /api/teacher/analytics - Get teacher analytics
+    if (route === '/teacher/analytics' && method === 'GET') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        const url = new URL(request.url)
+        const period = url.searchParams.get('period') || '30' // days
+        const subjectId = url.searchParams.get('subject_id')
+
+        const periodStart = new Date()
+        periodStart.setDate(periodStart.getDate() - parseInt(period))
+
+        // Get assignment completion stats
+        let assignmentQuery = supabase
+          .from('assignments')
+          .select(`
+            id, title, created_at, is_published,
+            assignment_attempts!inner(id, status, percentage_score, submitted_at)
+          `)
+          .eq('teacher_id', user.id)
+          .gte('created_at', periodStart.toISOString())
+
+        if (subjectId) {
+          assignmentQuery = assignmentQuery.eq('subject_id', subjectId)
+        }
+
+        const { data: assignments, error: assignmentError } = await assignmentQuery
+
+        // Get grade distribution
+        let gradeQuery = supabase
+          .from('teacher_gradebook')
+          .select('final_score, percentage, assignment_id, graded_at')
+          .eq('teacher_id', user.id)
+          .gte('graded_at', periodStart.toISOString())
+
+        const { data: grades, error: gradeError } = await gradeQuery
+
+        if (assignmentError || gradeError) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to fetch analytics data"
+          }, { status: 500 }))
+        }
+
+        // Calculate analytics
+        const totalAssignments = assignments?.length || 0
+        const publishedAssignments = assignments?.filter(a => a.is_published).length || 0
+        const totalAttempts = assignments?.reduce((sum, a) => sum + (a.assignment_attempts?.length || 0), 0) || 0
+        const completedAttempts = assignments?.reduce((sum, a) => 
+          sum + (a.assignment_attempts?.filter(att => att.status === 'completed').length || 0), 0) || 0
+
+        // Grade distribution
+        const gradeDistribution = {
+          'A': 0, 'B': 0, 'C': 0, 'D': 0, 'F': 0
+        }
+        
+        grades?.forEach(grade => {
+          const percentage = grade.percentage || 0
+          if (percentage >= 90) gradeDistribution.A++
+          else if (percentage >= 80) gradeDistribution.B++
+          else if (percentage >= 70) gradeDistribution.C++
+          else if (percentage >= 60) gradeDistribution.D++
+          else gradeDistribution.F++
+        })
+
+        // Average scores by assignment
+        const assignmentPerformance = assignments?.map(assignment => {
+          const attempts = assignment.assignment_attempts || []
+          const completedAttempts = attempts.filter(a => a.status === 'completed')
+          const avgScore = completedAttempts.length > 0 
+            ? completedAttempts.reduce((sum, a) => sum + (a.percentage_score || 0), 0) / completedAttempts.length
+            : 0
+
+          return {
+            assignmentId: assignment.id,
+            title: assignment.title,
+            totalAttempts: attempts.length,
+            completedAttempts: completedAttempts.length,
+            averageScore: Math.round(avgScore * 100) / 100,
+            completionRate: attempts.length > 0 ? (completedAttempts.length / attempts.length * 100) : 0
+          }
+        }) || []
+
+        return handleCORS(NextResponse.json({
+          period: `${period} days`,
+          overview: {
+            totalAssignments,
+            publishedAssignments,
+            totalAttempts,
+            completedAttempts,
+            completionRate: totalAttempts > 0 ? (completedAttempts / totalAttempts * 100) : 0,
+            averageGrade: grades?.length > 0 
+              ? grades.reduce((sum, g) => sum + (g.percentage || 0), 0) / grades.length 
+              : 0
+          },
+          gradeDistribution,
+          assignmentPerformance,
+          insights: generateTeacherInsights(assignmentPerformance, gradeDistribution)
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // POST /api/teacher/pdf-assessment - Generate PDF assessment
+    if (route === '/teacher/pdf-assessment' && method === 'POST') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        const body = await request.json()
+        
+        const { 
+          title, description, subjectId, topics = [], 
+          difficultyDistribution = { easy: 30, medium: 50, hard: 20 },
+          totalQuestions, totalMarks, duration, instructions,
+          useAI = true, schoolLogoUrl
+        } = body
+        
+        if (!title || !subjectId || !topics.length || !totalQuestions) {
+          return handleCORS(NextResponse.json({
+            error: "Missing required fields: title, subjectId, topics, totalQuestions"
+          }, { status: 400 }))
+        }
+
+        let questions = []
+
+        // Generate questions using AI if requested
+        if (useAI) {
+          try {
+            const { data: subject, error: subjectError } = await supabase
+              .from('subjects')
+              .select('name')
+              .eq('id', subjectId)
+              .single()
+
+            if (!subjectError && subject) {
+              questions = await generateAssessmentQuestions(
+                topics, 
+                subject.name,
+                totalQuestions,
+                difficultyDistribution
+              )
+            }
+          } catch (aiError) {
+            console.error('AI assessment generation failed:', aiError)
+            return handleCORS(NextResponse.json({
+              error: "Failed to generate assessment questions",
+              details: aiError.message
+            }, { status: 500 }))
+          }
+        }
+
+        // Create PDF assessment record
+        const assessmentData = {
+          teacher_id: user.id,
+          subject_id: subjectId,
+          title,
+          description,
+          topics,
+          difficulty_distribution: difficultyDistribution,
+          total_questions: totalQuestions,
+          total_marks: totalMarks || totalQuestions,
+          duration_minutes: duration,
+          instructions,
+          questions,
+          school_logo_url: schoolLogoUrl,
+          status: 'draft'
+        }
+
+        const { data: assessment, error } = await supabase
+          .from('pdf_assessments')
+          .insert(assessmentData)
+          .select()
+          .single()
+
+        if (error) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to create PDF assessment",
+            details: error.message
+          }, { status: 500 }))
+        }
+
+        return handleCORS(NextResponse.json({
+          message: "PDF assessment created successfully",
+          assessment,
+          questionsGenerated: questions.length
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // GET /api/teacher/pdf-assessments - Get teacher's PDF assessments
+    if (route === '/teacher/pdf-assessments' && method === 'GET') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        
+        const { data: assessments, error } = await supabase
+          .from('pdf_assessments')
+          .select(`
+            id, title, description, topics, total_questions, total_marks,
+            duration_minutes, pdf_generated, status, usage_count,
+            created_at, updated_at,
+            subjects!inner(id, name)
+          `)
+          .eq('teacher_id', user.id)
+          .order('updated_at', { ascending: false })
+
+        if (error) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to fetch PDF assessments",
+            details: error.message
+          }, { status: 500 }))
+        }
+
+        return handleCORS(NextResponse.json({
+          assessments: assessments || [],
+          count: assessments?.length || 0
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // POST /api/teacher/messages - Send message to student/parent
+    if (route === '/teacher/messages' && method === 'POST') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        const body = await request.json()
+        
+        const { 
+          recipientId, recipientType = 'student', subject, 
+          messageText, messageType = 'general', assignmentId,
+          priorityLevel = 'normal'
+        } = body
+        
+        if (!recipientId || !messageText) {
+          return handleCORS(NextResponse.json({
+            error: "Missing required fields: recipientId, messageText"
+          }, { status: 400 }))
+        }
+
+        const messageData = {
+          sender_id: user.id,
+          recipient_id: recipientId,
+          recipient_type: recipientType,
+          subject,
+          message_text: messageText,
+          message_type: messageType,
+          assignment_id: assignmentId,
+          priority_level: priorityLevel
+        }
+
+        const { data: message, error } = await supabase
+          .from('teacher_messages')
+          .insert(messageData)
+          .select(`
+            id, subject, message_text, message_type, priority_level, created_at,
+            user_profiles!teacher_messages_recipient_id_fkey!inner(id, full_name, email)
+          `)
+          .single()
+
+        if (error) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to send message",
+            details: error.message
+          }, { status: 500 }))
+        }
+
+        return handleCORS(NextResponse.json({
+          message: "Message sent successfully",
+          sentMessage: message
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
+    // GET /api/teacher/messages - Get teacher's messages
+    if (route === '/teacher/messages' && method === 'GET') {
+      try {
+        const user = await getAuthenticatedUser(supabase)
+        const url = new URL(request.url)
+        const type = url.searchParams.get('type') // sent, received
+        const unreadOnly = url.searchParams.get('unread') === 'true'
+        
+        let query = supabase
+          .from('teacher_messages')
+          .select(`
+            id, subject, message_text, message_type, priority_level,
+            is_read, read_at, created_at,
+            user_profiles!teacher_messages_sender_id_fkey(id, full_name, email, role),
+            user_profiles!teacher_messages_recipient_id_fkey(id, full_name, email, role),
+            assignments(id, title)
+          `)
+          .order('created_at', { ascending: false })
+
+        if (type === 'sent') {
+          query = query.eq('sender_id', user.id)
+        } else if (type === 'received') {
+          query = query.eq('recipient_id', user.id)
+          if (unreadOnly) {
+            query = query.eq('is_read', false)
+          }
+        } else {
+          // Get both sent and received
+          query = query.or(`sender_id.eq.${user.id},recipient_id.eq.${user.id}`)
+        }
+
+        const { data: messages, error } = await query
+
+        if (error) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to fetch messages",
+            details: error.message
+          }, { status: 500 }))
+        }
+
+        return handleCORS(NextResponse.json({
+          messages: messages || [],
+          count: messages?.length || 0
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: error.message || "Authentication required"
+        }, { status: 401 }))
+      }
+    }
+
     // Route not found
     return handleCORS(NextResponse.json(
       { error: `Route ${route} not found` }, 
