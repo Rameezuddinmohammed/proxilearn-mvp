@@ -2818,6 +2818,41 @@ export default function App() {
 
   // Non-teacher roles show placeholder  
   if (user && profile) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* Header */}
+        <header className="bg-white border-b border-gray-200 px-4 py-3">
+          <div className="flex items-center justify-between max-w-7xl mx-auto">
+            <div className="flex items-center gap-4">
+              <div className="p-2 bg-blue-600 rounded-lg">
+                <BookOpen className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-semibold text-gray-900">Proxilearn</h1>
+                <p className="text-sm text-gray-500">Educational Platform</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              <Badge className={`${getRoleBadgeColor(profile.role)} border-0`}>
+                {getRoleIcon(profile.role)}
+                <span className="ml-1 capitalize">{profile.role}</span>
+              </Badge>
+              
+              <div className="flex items-center gap-3">
+                <Avatar className="w-8 h-8">
+                  <AvatarImage src={profile.avatar_url} />
+                  <AvatarFallback className="bg-blue-100 text-blue-600">
+                    {profile.full_name?.charAt(0) || user.email?.charAt(0)}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="hidden sm:block">
+                  <p className="text-sm font-medium text-gray-900">{profile.full_name}</p>
+                  <p className="text-xs text-gray-500">{user.email}</p>
+                </div>
+              </div>
+              
+              <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleSignOut}
@@ -2858,6 +2893,22 @@ export default function App() {
                     <Settings className="w-8 h-8 text-blue-600" />
                   </div>
                   <h3 className="text-lg font-semibold mb-2">Dashboard Under Construction</h3>
+                  <p className="text-gray-600 mb-6">
+                    We're working hard to bring you an amazing {profile.role} experience.
+                    This dashboard will include all the tools and features you need to excel in your role.
+                  </p>
+                  <Button variant="outline">
+                    <Settings className="w-4 h-4 mr-2" />
+                    View Profile Settings
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </main>
+      </div>
+    )
+  }
                   <p className="text-gray-600 mb-4">
                     We're building amazing features tailored for {profile.role}s. 
                     Stay tuned for updates!
