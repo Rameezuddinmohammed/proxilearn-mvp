@@ -141,6 +141,8 @@ export default function App() {
       loadStudentData()
     } else if (user && profile && profile.role === 'teacher') {
       loadTeacherData()
+    } else if (user && profile && profile.role === 'coordinator') {
+      loadCoordinatorData()
     }
   }, [user, profile])
 
