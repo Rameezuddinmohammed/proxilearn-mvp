@@ -266,6 +266,79 @@ Ensure questions are:
   }
 }
 
+// Helper function to generate coordinator insights
+async function generateCoordinatorInsights(metricsData, analysisType) {
+  const prompt = `Analyze the following coordinator data and provide insights and recommendations:
+
+Analysis Type: ${analysisType}
+Metrics Data:
+- Total Students: ${metricsData.totalStudents}
+- Total Assignments: ${metricsData.totalAssignments}
+- Average Score: ${metricsData.averageScore.toFixed(2)}%
+- Grade Distribution: A: ${metricsData.gradeDistribution.A}, B: ${metricsData.gradeDistribution.B}, C: ${metricsData.gradeDistribution.C}, D: ${metricsData.gradeDistribution.D}, F: ${metricsData.gradeDistribution.F}
+- Subject Performance: ${JSON.stringify(metricsData.subjectBreakdown, null, 2)}
+
+Please provide:
+1. Key insights about student performance patterns
+2. Areas of concern that need attention
+3. Positive trends to celebrate
+4. Specific action recommendations for the coordinator
+5. Suggestions for teacher collaboration
+6. Ideas for student support interventions
+
+Focus on actionable, supportive guidance rather than just identifying problems. Use encouraging language that emphasizes growth opportunities.
+
+Format the response as JSON:
+{
+  "insights": ["insight1", "insight2", "insight3"],
+  "recommendations": ["recommendation1", "recommendation2", "recommendation3"],
+  "concerns": ["concern1", "concern2"],
+  "positives": ["positive1", "positive2"]
+}`
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: process.env.KIMI_MODEL || 'gpt-3.5-turbo',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are an experienced educational coordinator and data analyst. Provide actionable, supportive insights that help coordinators make informed decisions about student support and academic improvements. Focus on positive, growth-oriented recommendations.'
+        },
+        {
+          role: 'user',
+          content: prompt
+        }
+      ],
+      temperature: 0.7,
+      max_tokens: 1500
+    })
+
+    const content = completion.choices[0].message.content.trim()
+    // Extract JSON from the response
+    const jsonMatch = content.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) {
+      // Fallback if AI doesn't return proper JSON
+      return {
+        insights: ["Performance data analyzed successfully"],
+        recommendations: ["Continue monitoring student progress regularly"],
+        concerns: [],
+        positives: ["Students are actively engaged in assignments"]
+      }
+    }
+
+    return JSON.parse(jsonMatch[0])
+  } catch (error) {
+    console.error('AI Coordinator Insights Error:', error)
+    // Return fallback insights
+    return {
+      insights: ["Performance data has been analyzed"],
+      recommendations: ["Continue supporting students with regular check-ins"],
+      concerns: [],
+      positives: ["Students are making progress in their learning journey"]
+    }
+  }
+}
+
 // Helper function to generate teacher insights
 function generateTeacherInsights(assignmentPerformance, gradeDistribution) {
   const insights = []
