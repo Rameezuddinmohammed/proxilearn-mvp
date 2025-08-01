@@ -801,7 +801,7 @@ DECLARE
         'coordinator_alerts', 'coordinator_dashboard_widgets'
     ];
     missing_tables TEXT := '';
-    table_name TEXT;
+    tbl_name TEXT;
 BEGIN
     SELECT COUNT(*) INTO table_count
     FROM information_schema.tables
@@ -809,12 +809,12 @@ BEGIN
     AND table_name = ANY(coordinator_tables);
     
     -- Check for missing tables
-    FOREACH table_name IN ARRAY coordinator_tables LOOP
+    FOREACH tbl_name IN ARRAY coordinator_tables LOOP
         IF NOT EXISTS (
             SELECT 1 FROM information_schema.tables 
-            WHERE table_schema = 'public' AND table_name = table_name
+            WHERE table_schema = 'public' AND table_name = tbl_name
         ) THEN
-            missing_tables := missing_tables || table_name || ', ';
+            missing_tables := missing_tables || tbl_name || ', ';
         END IF;
     END LOOP;
     
