@@ -74,6 +74,97 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json({ message: "Hello World" }))
     }
 
+    // Supabase test endpoint - GET /api/supabase-test
+    if (route === '/supabase-test' && method === 'GET') {
+      try {
+        const supabase = createSupabaseServer()
+        
+        // Test 1: Try to read schools
+        const { data: schools, error: schoolsError } = await supabase
+          .from('schools')
+          .select('*')
+          .limit(5)
+
+        if (schoolsError && schoolsError.code !== 'PGRST116') {
+          return handleCORS(NextResponse.json({
+            error: "Database connection failed",
+            details: schoolsError.message
+          }, { status: 500 }))
+        }
+
+        // Test 2: Try to read user profiles (should be empty or require auth)
+        const { data: profiles, error: profilesError } = await supabase
+          .from('user_profiles')
+          .select('id, email, role')
+          .limit(3)
+
+        return handleCORS(NextResponse.json({
+          message: "Supabase connection successful",
+          schools: schools || [],
+          profilesCount: profiles?.length || 0,
+          timestamp: new Date().toISOString()
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: "Supabase test failed",
+          details: error.message
+        }, { status: 500 }))
+      }
+    }
+
+    // Initialize demo schools - POST /api/init-demo-schools
+    if (route === '/init-demo-schools' && method === 'POST') {
+      try {
+        const supabase = createSupabaseServer()
+        
+        const demoSchools = [
+          {
+            name: "Delhi Public School, Hyderabad",
+            address: "Nacharam, Hyderabad, Telangana 500076",
+            phone: "+91-40-27153456",
+            email: "info@dpshyderabad.com"
+          },
+          {
+            name: "Oakridge International School",
+            address: "Gachibowli, Hyderabad, Telangana 500032",
+            phone: "+91-40-40059999",
+            email: "admissions@oakridge.in"
+          },
+          {
+            name: "Gitanjali School",
+            address: "Begumpet, Hyderabad, Telangana 500016", 
+            phone: "+91-40-27904561",
+            email: "info@gitanjalischool.com"
+          }
+        ]
+
+        const { data, error } = await supabase
+          .from('schools')
+          .insert(demoSchools)
+          .select()
+
+        if (error) {
+          return handleCORS(NextResponse.json({
+            error: "Failed to create demo schools",
+            details: error.message
+          }, { status: 500 }))
+        }
+
+        return handleCORS(NextResponse.json({
+          message: "Demo schools created successfully",
+          schools: data,
+          count: data.length
+        }))
+
+      } catch (error) {
+        return handleCORS(NextResponse.json({
+          error: "Demo schools initialization failed",
+          details: error.message
+        }, { status: 500 }))
+      }
+    }
+
     // Status endpoints - POST /api/status
     if (route === '/status' && method === 'POST') {
       const body = await request.json()
