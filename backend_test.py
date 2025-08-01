@@ -11,8 +11,8 @@ import sys
 from datetime import datetime
 import uuid
 
-# Configuration
-BASE_URL = "https://0f73a4da-54f9-4484-a34b-b952ab581164.preview.emergentagent.com"
+# Configuration - Using local URL since external routing has issues
+BASE_URL = "http://localhost:3000"
 API_BASE_URL = f"{BASE_URL}/api"
 
 class ProxilearnBackendTester:
