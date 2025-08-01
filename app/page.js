@@ -37,6 +37,28 @@ export default function App() {
   const [progress, setProgress] = useState(null)
   const [loadingData, setLoadingData] = useState(false)
   
+  // Teacher Dashboard State
+  const [teacherActiveTab, setTeacherActiveTab] = useState('overview')
+  const [teacherDashboard, setTeacherDashboard] = useState(null)
+  const [lessonPlans, setLessonPlans] = useState([])
+  const [teacherAssignments, setTeacherAssignments] = useState([])
+  const [gradebook, setGradebook] = useState([])
+  const [teacherAnalytics, setTeacherAnalytics] = useState(null)
+  const [teacherResources, setTeacherResources] = useState([])
+  const [teacherMessages, setTeacherMessages] = useState([])
+  
+  // Teacher UI State
+  const [showCreateLessonPlan, setShowCreateLessonPlan] = useState(false)
+  const [showCreateAssignment, setShowCreateAssignment] = useState(false)
+  const [showCreateResource, setShowCreateResource] = useState(false)
+  const [showSendMessage, setShowSendMessage] = useState(false)
+  const [lessonPlanForm, setLessonPlanForm] = useState({
+    title: '', subject: '', grade: '', duration: 40, objectives: '', ai_prompt: ''
+  })
+  const [assignmentForm, setAssignmentForm] = useState({
+    title: '', subject: '', description: '', difficulty: 'medium', questionCount: 10, timeLimit: 30
+  })
+  
   // Quiz Interface State
   const [currentQuiz, setCurrentQuiz] = useState(null)
   const [quizQuestions, setQuizQuestions] = useState([])
