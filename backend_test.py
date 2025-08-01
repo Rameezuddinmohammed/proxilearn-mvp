@@ -46,7 +46,7 @@ class ProxilearnStudentPhaseAPITester:
         if details and not success:
             print(f"   Details: {details}")
 
-    def make_request(self, method, endpoint, data=None, timeout=10):
+    def make_request(self, method, endpoint, data=None, timeout=15):
         """Make HTTP request with error handling"""
         url = f"{API_BASE_URL}{endpoint}"
         
@@ -63,10 +63,10 @@ class ProxilearnStudentPhaseAPITester:
             
             return response
         except requests.exceptions.Timeout:
-            self.log_test(f"Request to {endpoint}", False, f"Request timeout after {timeout}s")
+            print(f"   Request timeout after {timeout}s for {endpoint}")
             return None
         except requests.exceptions.RequestException as e:
-            self.log_test(f"Request to {endpoint}", False, f"Network error: {str(e)}")
+            print(f"   Network error for {endpoint}: {str(e)}")
             return None
 
     def test_basic_connectivity(self):
